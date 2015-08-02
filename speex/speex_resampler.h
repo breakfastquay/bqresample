@@ -35,6 +35,8 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifdef USE_SPEEX
+
 #ifndef SPEEX_RESAMPLER_H
 #define SPEEX_RESAMPLER_H
 
@@ -296,6 +298,8 @@ const char *speex_resampler_strerror(int err);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
 
 #endif

@@ -69,6 +69,8 @@
    generally useful.
 */
 
+#ifdef USE_SPEEX
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -1262,3 +1264,5 @@ const char *speex_resampler_strerror(int err)
         return "Unknown error. Bad error code or strange version mismatch.";
     }
 }
+
+#endif
