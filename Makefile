@@ -75,9 +75,10 @@ ALLOCATOR_DEFINES 	:=
 
 
 SRC_DIR	:= src
+SPEEX_DIR := speex
 HEADER_DIR := bqresample
 
-SOURCES	:= $(wildcard $(SRC_DIR)/*.cpp)
+SOURCES	:= $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SPEEX_DIR)/*.c)
 HEADERS	:= $(wildcard $(HEADER_DIR)/*.h) $(wildcard $(SRC_DIR)/*.h)
 
 OBJECTS	:= $(SOURCES:.cpp=.o)

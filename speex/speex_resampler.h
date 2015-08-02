@@ -44,7 +44,7 @@
    names so that there won't be any clash if linking with Speex later
    on. */
 
-#define RANDOM_PREFIX turbot
+#define RANDOM_PREFIX bqresample
 
 #ifndef RANDOM_PREFIX
 #error "Please define RANDOM_PREFIX (above) to something specific to your project to prevent symbol name clashes"
