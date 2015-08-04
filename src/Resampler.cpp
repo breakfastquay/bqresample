@@ -71,7 +71,7 @@
 #endif
 #endif
 
-using namespace breakfastquay;
+using namespace std;
 
 namespace breakfastquay {
 
@@ -83,13 +83,13 @@ public:
     virtual int resample(const float *const BQ_R__ *const BQ_R__ in, 
                          float *const BQ_R__ *const BQ_R__ out,
                          int incount,
-                         float ratio,
+                         double ratio,
                          bool final) = 0;
     
     virtual int resampleInterleaved(const float *const BQ_R__ in, 
                                     float *const BQ_R__ out,
                                     int incount,
-                                    float ratio,
+                                    double ratio,
                                     bool final) = 0;
 
     virtual int getChannelCount() const = 0;
@@ -111,13 +111,13 @@ public:
     int resample(const float *const BQ_R__ *const BQ_R__ in,
                  float *const BQ_R__ *const BQ_R__ out,
                  int incount,
-                 float ratio,
+                 double ratio,
                  bool final);
 
     int resampleInterleaved(const float *const BQ_R__ in,
                             float *const BQ_R__ out,
                             int incount,
-                            float ratio,
+                            double ratio,
                             bool final = false);
 
     int getChannelCount() const { return m_channels; }
@@ -149,8 +149,8 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        std::cerr << "Resampler::Resampler: using IPP implementation"
-                  << std::endl;
+        cerr << "Resampler::Resampler: using IPP implementation"
+                  << endl;
     }
 
     int nStep;
@@ -180,7 +180,7 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
     }
 
     m_factor = 8; // initial upper bound on m_ratio, may be amended later
-    m_history = int(m_window * 0.5 * std::max(1.0, 1.0 / m_factor)) + 1;
+    m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
 
     m_state = new IppsResamplingPolyphase_32f *[m_channels];
 
@@ -190,7 +190,7 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
     m_bufsize = maxBufferSize + m_history;
 
     if (m_debugLevel > 1) {
-        std::cerr << "bufsize = " << m_bufsize << ", window = " << m_window << ", nStep = " << nStep << ", history = " << m_history << std::endl;
+        cerr << "bufsize = " << m_bufsize << ", window = " << m_window << ", nStep = " << nStep << ", history = " << m_history << endl;
     }
 
     for (int c = 0; c < m_channels; ++c) {
@@ -206,19 +206,19 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
 
     m_inbufsz = m_bufsize + m_history + 2;
     if (m_debugLevel > 1) {
-        std::cerr << "inbuf allocating " << m_bufsize << " + " << m_history << " + 2 = " << m_inbufsz << std::endl;
+        cerr << "inbuf allocating " << m_bufsize << " + " << m_history << " + 2 = " << m_inbufsz << endl;
     }
 
     m_outbufsz = lrintf(ceil((m_bufsize - m_history) * m_factor + 2));
     if (m_debugLevel > 1) {
-        std::cerr << "outbuf allocating (" << m_bufsize << " - " << m_history << ") * " << m_factor << " + 2 = " << m_outbufsz << std::endl;
+        cerr << "outbuf allocating (" << m_bufsize << " - " << m_history << ") * " << m_factor << " + 2 = " << m_outbufsz << endl;
     }
 
     m_inbuf  = allocate_and_zero_channels<float>(m_channels, m_inbufsz);
     m_outbuf = allocate_and_zero_channels<float>(m_channels, m_outbufsz);
 
     if (m_debugLevel > 1) {
-        std::cerr << "Resampler init done" << std::endl;
+        cerr << "Resampler init done" << endl;
     }
 }
 
@@ -240,18 +240,18 @@ void
 D_IPP::setBufSize(int sz)
 {
     if (m_debugLevel > 1) {
-        std::cerr << "resize bufsize " << m_bufsize << " -> ";
+        cerr << "resize bufsize " << m_bufsize << " -> ";
     }
 
     m_bufsize = sz;
 
-    std::cerr << m_bufsize << std::endl;
+    cerr << m_bufsize << endl;
 
     int n1 = m_bufsize + m_history + 2;
-    int n2 = lrintf(ceil((m_bufsize - m_history) * m_factor + 2));
+    int n2 = (int)lrintf(ceil((m_bufsize - m_history) * m_factor + 2));
 
     if (m_debugLevel > 1) {
-        std::cerr << "(outbufsize = " << n2 << ")" << std::endl;
+        cerr << "(outbufsize = " << n2 << ")" << endl;
     }
 
     m_inbuf = reallocate_and_zero_extend_channels
@@ -268,14 +268,14 @@ int
 D_IPP::resample(const float *const BQ_R__ *const BQ_R__ in,
                 float *const BQ_R__ *const BQ_R__ out,
                 int incount,
-                float ratio,
+                double ratio,
                 bool final)
 {
     int outcount = 0;
 
     if (ratio > m_factor) {
         m_factor = ratio;
-        m_history = int(m_window * 0.5 * std::max(1.0, 1.0 / m_factor)) + 1;
+        m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
     }
 
     for (int c = 0; c < m_channels; ++c) {
@@ -336,7 +336,7 @@ D_IPP::resample(const float *const BQ_R__ *const BQ_R__ in,
                                       &additionalcount);
 
             if (m_debugLevel > 2) {
-                std::cerr << "incount = " << incount << ", outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << ", est space = " << lrintf(ceil(incount * ratio)) <<std::endl;
+                cerr << "incount = " << incount << ", outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << ", est space = " << lrintf(ceil(incount * ratio)) <<endl;
             }
 
             v_copy(out[c] + outcount, m_outbuf[c], additionalcount);
@@ -357,14 +357,14 @@ int
 D_IPP::resampleInterleaved(const float *const BQ_R__ in,
                            float *const BQ_R__ out,
                            int incount,
-                           float ratio,
+                           double ratio,
                            bool final)
 {
     int outcount = 0;
 
     if (ratio > m_factor) {
         m_factor = ratio;
-        m_history = int(m_window * 0.5 * std::max(1.0, 1.0 / m_factor)) + 1;
+        m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
     }
 
     for (int c = 0; c < m_channels; ++c) {
@@ -428,7 +428,7 @@ D_IPP::resampleInterleaved(const float *const BQ_R__ in,
                                       &additionalcount);
 
             if (m_debugLevel > 2) {
-                std::cerr << "incount = " << incount << ", outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << ", est space = " << lrintf(ceil(incount * ratio)) <<std::endl;
+                cerr << "incount = " << incount << ", outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << ", est space = " << lrintf(ceil(incount * ratio)) <<endl;
             }
         }
 
@@ -466,13 +466,13 @@ public:
     int resample(const float *const BQ_R__ *const BQ_R__ in,
                  float *const BQ_R__ *const BQ_R__ out,
                  int incount,
-                 float ratio,
+                 double ratio,
                  bool final);
 
     int resampleInterleaved(const float *const BQ_R__ in,
                             float *const BQ_R__ out,
                             int incount,
-                            float ratio,
+                            double ratio,
                             bool final = false);
 
     int getChannelCount() const { return m_channels; }
@@ -483,7 +483,7 @@ protected:
     SRC_STATE *m_src;
     float *m_iin;
     float *m_iout;
-    float m_lastRatio;
+    double m_lastRatio;
     int m_channels;
     int m_iinsize;
     int m_ioutsize;
@@ -495,15 +495,15 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, int maxBufferSize,
     m_src(0),
     m_iin(0),
     m_iout(0),
-    m_lastRatio(1.f),
+    m_lastRatio(1.0),
     m_channels(channels),
     m_iinsize(0),
     m_ioutsize(0),
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        std::cerr << "Resampler::Resampler: using libsamplerate implementation"
-                  << std::endl;
+        cerr << "Resampler::Resampler: using libsamplerate implementation"
+                  << endl;
     }
 
     int err = 0;
@@ -513,8 +513,8 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, int maxBufferSize,
                     channels, &err);
 
     if (err) {
-        std::cerr << "Resampler::Resampler: failed to create libsamplerate resampler: " 
-                  << src_strerror(err) << std::endl;
+        cerr << "Resampler::Resampler: failed to create libsamplerate resampler: " 
+                  << src_strerror(err) << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -541,12 +541,12 @@ int
 D_SRC::resample(const float *const BQ_R__ *const BQ_R__ in,
                 float *const BQ_R__ *const BQ_R__ out,
                 int incount,
-                float ratio,
+                double ratio,
                 bool final)
 {
     SRC_DATA data;
 
-    int outcount = lrintf(ceilf(incount * ratio));
+    int outcount = (int)lrint(ceil(incount * ratio));
 
     if (m_channels == 1) {
         data.data_in = const_cast<float *>(*in); //!!!???
@@ -573,32 +573,32 @@ D_SRC::resample(const float *const BQ_R__ *const BQ_R__ in,
     int err = src_process(m_src, &data);
 
     if (err) {
-        std::cerr << "Resampler::process: libsamplerate error: "
-                  << src_strerror(err) << std::endl;
+        cerr << "Resampler::process: libsamplerate error: "
+                  << src_strerror(err) << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
     }
 
     if (m_channels > 1) {
-        v_deinterleave(out, m_iout, m_channels, data.output_frames_gen);
+        v_deinterleave(out, m_iout, m_channels, (int)data.output_frames_gen);
     }
 
     m_lastRatio = ratio;
 
-    return data.output_frames_gen;
+    return (int)data.output_frames_gen;
 }
 
 int
 D_SRC::resampleInterleaved(const float *const BQ_R__ in,
                            float *const BQ_R__ out,
                            int incount,
-                           float ratio,
+                           double ratio,
                            bool final)
 {
     SRC_DATA data;
 
-    int outcount = lrintf(ceilf(incount * ratio));
+    int outcount = (int)lrint(ceil(incount * ratio));
 
     data.data_in = const_cast<float *>(in);
     data.data_out = out;
@@ -611,8 +611,8 @@ D_SRC::resampleInterleaved(const float *const BQ_R__ in,
     int err = src_process(m_src, &data);
 
     if (err) {
-        std::cerr << "Resampler::process: libsamplerate error: "
-                  << src_strerror(err) << std::endl;
+        cerr << "Resampler::process: libsamplerate error: "
+                  << src_strerror(err) << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -620,7 +620,7 @@ D_SRC::resampleInterleaved(const float *const BQ_R__ in,
 
     m_lastRatio = ratio;
 
-    return data.output_frames_gen;
+    return (int)data.output_frames_gen;
 }
 
 void
@@ -643,13 +643,13 @@ public:
     int resample(const float *const BQ_R__ *const BQ_R__ in,
                  float *const BQ_R__ *const BQ_R__ out,
                  int incount,
-                 float ratio,
+                 double ratio,
                  bool final);
 
     int resampleInterleaved(const float *const BQ_R__ in,
                             float *const BQ_R__ out,
                             int incount,
-                            float ratio,
+                            double ratio,
                             bool final);
 
     int getChannelCount() const { return m_channels; }
@@ -679,8 +679,8 @@ D_Resample::D_Resample(Resampler::Quality quality, int channels, int maxBufferSi
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        std::cerr << "Resampler::Resampler: using libresample implementation"
-                  << std::endl;
+        cerr << "Resampler::Resampler: using libresample implementation"
+                  << endl;
     }
 
     float min_factor = 0.125f;
@@ -689,8 +689,8 @@ D_Resample::D_Resample(Resampler::Quality quality, int channels, int maxBufferSi
     m_src = resample_open(quality == Resampler::Best ? 1 : 0, min_factor, max_factor);
 
     if (!m_src) {
-        std::cerr << "Resampler::Resampler: failed to create libresample resampler: " 
-                  << std::endl;
+        cerr << "Resampler::Resampler: failed to create libresample resampler: " 
+                  << endl;
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
 
@@ -719,7 +719,7 @@ int
 D_Resample::resample(const float *const BQ_R__ *const BQ_R__ in,
                      float *const BQ_R__ *const BQ_R__ out,
                      int incount,
-                     float ratio,
+                     double ratio,
                      bool final)
 {
     float *data_in;
@@ -727,7 +727,7 @@ D_Resample::resample(const float *const BQ_R__ *const BQ_R__ in,
     int input_frames, output_frames, end_of_input, source_used;
     float src_ratio;
 
-    int outcount = lrintf(ceilf(incount * ratio));
+    int outcount = (int)lrint(ceil(incount * ratio));
 
     if (m_channels == 1) {
         data_in = const_cast<float *>(*in); //!!!???
@@ -761,8 +761,8 @@ D_Resample::resample(const float *const BQ_R__ *const BQ_R__ in,
                                              output_frames);
 
     if (output_frames_gen < 0) {
-        std::cerr << "Resampler::process: libresample error: "
-                  << std::endl;
+        cerr << "Resampler::process: libresample error: "
+                  << endl;
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
 
@@ -779,13 +779,13 @@ int
 D_Resample::resampleInterleaved(const float *const BQ_R__ in,
                                 float *const BQ_R__ out,
                                 int incount,
-                                float ratio,
+                                double ratio,
                                 bool final)
 {
     int input_frames, output_frames, end_of_input, source_used;
     float src_ratio;
 
-    int outcount = lrintf(ceilf(incount * ratio));
+    int outcount = (int)lrint(ceil(incount * ratio));
 
     input_frames = incount;
     output_frames = outcount;
@@ -802,8 +802,8 @@ D_Resample::resampleInterleaved(const float *const BQ_R__ in,
                                              output_frames);
 
     if (output_frames_gen < 0) {
-        std::cerr << "Resampler::process: libresample error: "
-                  << std::endl;
+        cerr << "Resampler::process: libresample error: "
+                  << endl;
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
 
@@ -831,13 +831,13 @@ public:
     int resample(const float *const BQ_R__ *const BQ_R__ in,
                  float *const BQ_R__ *const BQ_R__ out,
                  int incount,
-                 float ratio,
+                 double ratio,
                  bool final);
 
     int resampleInterleaved(const float *const BQ_R__ in,
                             float *const BQ_R__ out,
                             int incount,
-                            float ratio,
+                            double ratio,
                             bool final = false);
 
     int getChannelCount() const { return m_channels; }
@@ -874,9 +874,9 @@ D_Speex::D_Speex(Resampler::Quality quality, int channels, int maxBufferSize,
              quality == Resampler::Fastest ? 0 : 4);
 
     if (m_debugLevel > 0) {
-        std::cerr << "Resampler::Resampler: using Speex implementation with q = "
+        cerr << "Resampler::Resampler: using Speex implementation with q = "
                   << q 
-                  << std::endl;
+                  << endl;
     }
 
     int err = 0;
@@ -888,8 +888,8 @@ D_Speex::D_Speex(Resampler::Quality quality, int channels, int maxBufferSize,
     
 
     if (err) {
-        std::cerr << "Resampler::Resampler: failed to create Speex resampler" 
-                  << std::endl;
+        cerr << "Resampler::Resampler: failed to create Speex resampler" 
+                  << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -911,7 +911,7 @@ D_Speex::~D_Speex()
 }
 
 void
-D_Speex::setRatio(float ratio)
+D_Speex::setRatio(double ratio)
 {
     // Speex wants a ratio of two unsigned integers, not a single
     // float.  Let's do that.
@@ -930,17 +930,17 @@ D_Speex::setRatio(float ratio)
     }
     
     if (m_debugLevel > 1) {
-        std::cerr << "D_Speex: Desired ratio " << ratio << ", requesting ratio "
+        cerr << "D_Speex: Desired ratio " << ratio << ", requesting ratio "
                   << num << "/" << denom << " = " << float(double(num)/double(denom))
-                  << std::endl;
+                  << endl;
     }
     
     int err = speex_resampler_set_rate_frac
         (m_resampler, denom, num, 48000, 48000);
 
     if (err) {
-        std::cerr << "Resampler::Resampler: failed to set rate on Speex resampler" 
-                  << std::endl;
+        cerr << "Resampler::Resampler: failed to set rate on Speex resampler" 
+                  << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -949,9 +949,9 @@ D_Speex::setRatio(float ratio)
     speex_resampler_get_ratio(m_resampler, &denom, &num);
     
     if (m_debugLevel > 1) {
-        std::cerr << "D_Speex: Desired ratio " << ratio << ", got ratio "
+        cerr << "D_Speex: Desired ratio " << ratio << ", got ratio "
                   << num << "/" << denom << " = " << float(double(num)/double(denom))
-                  << std::endl;
+                  << endl;
     }
     
     m_lastratio = ratio;
@@ -966,7 +966,7 @@ int
 D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
                   float *const BQ_R__ *const BQ_R__ out,
                   int incount,
-                  float ratio,
+                  double ratio,
                   bool final)
 {
     if (ratio != m_lastratio) {
@@ -974,7 +974,7 @@ D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
     }
 
     unsigned int uincount = incount;
-    unsigned int outcount = lrintf(ceilf(incount * ratio)); //!!! inexact now
+    unsigned int outcount = (unsigned int)lrint(ceil(incount * ratio)); //!!! inexact now
 
     float *data_in, *data_out;
 
@@ -1002,9 +1002,9 @@ D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
                                                         &outcount);
 
     if (err) {
-        std::cerr << "Resampler::Resampler: Speex resampler returned error "
+        cerr << "Resampler::Resampler: Speex resampler returned error "
                   << err
-                  << std::endl;
+                  << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -1021,7 +1021,7 @@ int
 D_Speex::resampleInterleaved(const float *const BQ_R__ in,
                              float *const BQ_R__ out,
                              int incount,
-                             float ratio,
+                             double ratio,
                              bool final)
 {
     if (ratio != m_lastratio) {
@@ -1029,7 +1029,7 @@ D_Speex::resampleInterleaved(const float *const BQ_R__ in,
     }
 
     unsigned int uincount = incount;
-    unsigned int outcount = lrintf(ceilf(incount * ratio)); //!!! inexact now
+    unsigned int outcount = (unsigned int)lrint(ceil(incount * ratio)); //!!! inexact now
 
     float *data_in = const_cast<float *>(in);
     float *data_out = out;
@@ -1041,9 +1041,9 @@ D_Speex::resampleInterleaved(const float *const BQ_R__ in,
                                                         &outcount);
 
     if (err) {
-        std::cerr << "Resampler::Resampler: Speex resampler returned error "
+        cerr << "Resampler::Resampler: Speex resampler returned error "
                   << err
-                  << std::endl;
+                  << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -1116,9 +1116,9 @@ Resampler::Resampler(Resampler::Quality quality, int channels,
     }
 
     if (m_method == -1) {
-        std::cerr << "Resampler::Resampler(" << quality << ", " << channels
+        cerr << "Resampler::Resampler(" << quality << ", " << channels
                   << ", " << maxBufferSize << "): No implementation available!"
-                  << std::endl;
+                  << endl;
         abort();
     }
 
@@ -1127,9 +1127,9 @@ Resampler::Resampler(Resampler::Quality quality, int channels,
 #ifdef HAVE_IPP
         d = new Resamplers::D_IPP(quality, channels, maxBufferSize, debugLevel);
 #else
-        std::cerr << "Resampler::Resampler(" << quality << ", " << channels
+        cerr << "Resampler::Resampler(" << quality << ", " << channels
                   << ", " << maxBufferSize << "): No implementation available!"
-                  << std::endl;
+                  << endl;
         abort();
 #endif
         break;
@@ -1138,9 +1138,9 @@ Resampler::Resampler(Resampler::Quality quality, int channels,
 #ifdef HAVE_LIBSAMPLERATE
         d = new Resamplers::D_SRC(quality, channels, maxBufferSize, debugLevel);
 #else
-        std::cerr << "Resampler::Resampler(" << quality << ", " << channels
+        cerr << "Resampler::Resampler(" << quality << ", " << channels
                   << ", " << maxBufferSize << "): No implementation available!"
-                  << std::endl;
+                  << endl;
         abort();
 #endif
         break;
@@ -1149,9 +1149,9 @@ Resampler::Resampler(Resampler::Quality quality, int channels,
 #ifdef USE_SPEEX
         d = new Resamplers::D_Speex(quality, channels, maxBufferSize, debugLevel);
 #else
-        std::cerr << "Resampler::Resampler(" << quality << ", " << channels
+        cerr << "Resampler::Resampler(" << quality << ", " << channels
                   << ", " << maxBufferSize << "): No implementation available!"
-                  << std::endl;
+                  << endl;
         abort();
 #endif
         break;
@@ -1160,19 +1160,19 @@ Resampler::Resampler(Resampler::Quality quality, int channels,
 #ifdef HAVE_LIBRESAMPLE
         d = new Resamplers::D_Resample(quality, channels, maxBufferSize, debugLevel);
 #else
-        std::cerr << "Resampler::Resampler(" << quality << ", " << channels
+        cerr << "Resampler::Resampler(" << quality << ", " << channels
                   << ", " << maxBufferSize << "): No implementation available!"
-                  << std::endl;
+                  << endl;
         abort();
 #endif
         break;
     }
 
     if (!d) {
-        std::cerr << "Resampler::Resampler(" << quality << ", " << channels
+        cerr << "Resampler::Resampler(" << quality << ", " << channels
                   << ", " << maxBufferSize
                   << "): Internal error: No implementation selected"
-                  << std::endl;
+                  << endl;
         abort();
     }
 }
@@ -1185,7 +1185,7 @@ Resampler::~Resampler()
 int 
 Resampler::resample(const float *const BQ_R__ *const BQ_R__ in,
                     float *const BQ_R__ *const BQ_R__ out,
-                    int incount, float ratio, bool final)
+                    int incount, double ratio, bool final)
 {
     return d->resample(in, out, incount, ratio, final);
 }
@@ -1193,7 +1193,7 @@ Resampler::resample(const float *const BQ_R__ *const BQ_R__ in,
 int 
 Resampler::resampleInterleaved(const float *const BQ_R__ in,
                                float *const BQ_R__ out,
-                               int incount, float ratio, bool final)
+                               int incount, double ratio, bool final)
 {
     return d->resampleInterleaved(in, out, incount, ratio, final);
 }

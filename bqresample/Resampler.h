@@ -64,7 +64,7 @@ public:
     int resample(const float *const BQ_R__ *const BQ_R__ in,
                  float *const BQ_R__ *const BQ_R__ out,
                  int incount,
-                 float ratio,
+                 double ratio,
                  bool final = false);
 
     /**
@@ -76,7 +76,7 @@ public:
     int resampleInterleaved(const float *const BQ_R__ in,
                             float *const BQ_R__ out,
                             int incount,
-                            float ratio,
+                            double ratio,
                             bool final = false);
 
     int getChannelCount() const;
