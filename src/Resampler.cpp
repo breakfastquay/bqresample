@@ -42,6 +42,7 @@
 #include <algorithm>
 
 #include "bqvec/Allocators.h"
+#include "bqvec/VectorOps.h"
 
 #ifdef HAVE_IPP
 #include <ipps.h>
