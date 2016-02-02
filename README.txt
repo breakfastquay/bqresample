@@ -7,7 +7,7 @@ implementations.
 
 Requires the bqvec library.
 
-C++ standard required: C++98 (does not use C++11)
+C++ standard required: C++98 or newer (does not use C++11)
 
 Copyright 2007-2015 Particular Programs Ltd.
 Uses Speex code, see speex/COPYING for copyright and licence information.

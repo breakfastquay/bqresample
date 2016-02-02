@@ -50,6 +50,10 @@
 #include <ippac.h>
 #endif
 
+#ifdef HAVE_SAMPLERATE
+#define HAVE_LIBSAMPLERATE 1
+#endif
+
 #ifdef HAVE_LIBSAMPLERATE
 #include <samplerate.h>
 #endif
