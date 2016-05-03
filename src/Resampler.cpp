@@ -860,7 +860,7 @@ protected:
     bool m_initial;
     int m_debugLevel;
 
-    void setRatio(float);
+    void setRatio(double);
 };
 
 D_Speex::D_Speex(Resampler::Quality quality, int channels, int maxBufferSize,
