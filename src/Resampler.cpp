@@ -45,9 +45,18 @@
 #include "bqvec/VectorOps.h"
 
 #ifdef HAVE_IPP
+#include <ippversion.h>
+#if (IPP_VERSION_MAJOR < 7)
 #include <ipps.h>
 #include <ippsr.h>
 #include <ippac.h>
+#else
+// ippsResamplePolyphase functions were removed in IPPv7 and then
+// reinstated in IPPv7.1, but with a different API. This code hasn't
+// yet been updated to the newer API. See
+// https://software.intel.com/en-us/forums/intel-integrated-performance-primitives/topic/279130
+#error "Support is available for IPP version 6.1 or earlier only"
+#endif
 #endif
 
 #ifdef HAVE_SAMPLERATE

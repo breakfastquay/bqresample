@@ -23,6 +23,11 @@
 
 RESAMPLE_DEFINES	:= -DUSE_SPEEX
 
+# Add any related includes and libraries here
+#
+THIRD_PARTY_INCLUDES	:= 
+THIRD_PARTY_LIBS	:= 
+
 
 # Add to VECTOR_DEFINES the relevant options for your desired
 # third-party library support.
@@ -88,8 +93,8 @@ OBJECTS	:= $(OBJECTS:.c=.o)
 TEST_SOURCES	:= $(wildcard $(TEST_DIR)/*.cpp)
 TEST_OBJECTS	:= $(TEST_SOURCES:.cpp=.o)
 
-CXXFLAGS := $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. -O3 -ffast-math -Wall -Werror -fpic -std=c++98
-CFLAGS	:= $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. -O3 -ffast-math -Wall -Werror -fpic
+CXXFLAGS := $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. $(THIRD_PARTY_INCLUDES) -O3 -ffast-math -Wall -Werror -fpic -std=c++98
+CFLAGS	:= $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. $(THIRD_PARTY_INCLUDES) -O3 -ffast-math -Wall -Werror -fpic
 
 LIBRARY	:= libbqresample.a
 
@@ -102,7 +107,7 @@ $(LIBRARY):	$(OBJECTS)
 	$(AR) rc $@ $^
 
 test-resampler:	test/TestResampler.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework $(THIRD_PARTY_LIBS)
 
 clean:		
 	rm -f $(OBJECTS) $(TEST_OBJECTS)
