@@ -52,17 +52,21 @@ public:
      * that may be passed to the resample function before the
      * resampler needs to reallocate its internal buffers.
      */
-    Resampler(Quality quality, int channels, int maxBufferSize = 0,
-              int debugLevel = 0);
+    Resampler(Quality quality, int channels,
+              int maxBufferSize = 0, int debugLevel = 0);
     ~Resampler();
 
     /**
      * Resample the given multi-channel buffers, where incount is the
-     * number of frames in the input buffers.  Returns the number of
-     * frames written to the output buffers.
+     * number of frames in the input buffers and outcount is the space
+     * available in the output buffers. Generally you want outcount to
+     * be at least ceil(incount * ratio).
+     *
+     * Returns the number of frames written to the output buffers.
      */
-    int resample(const float *const BQ_R__ *const BQ_R__ in,
-                 float *const BQ_R__ *const BQ_R__ out,
+    int resample(float *const BQ_R__ *const BQ_R__ out,
+                 int outcount,
+                 const float *const BQ_R__ *const BQ_R__ in,
                  int incount,
                  double ratio,
                  bool final = false);
@@ -70,11 +74,16 @@ public:
     /**
      * Resample the given interleaved buffer, where incount is the
      * number of frames in the input buffer (i.e. it has incount *
-     * getChannelCount() samples).  Returns the number of frames
-     * written to the output buffer.
+     * getChannelCount() samples) and outcount is the space available
+     * in frames in the output buffer (i.e. it has space for at least
+     * outcount * getChannelCount() samples). Generally you want outcount to
+     * be at least ceil(incount * ratio).
+     *
+     * Returns the number of frames written to the output buffer.
      */
-    int resampleInterleaved(const float *const BQ_R__ in,
-                            float *const BQ_R__ out,
+    int resampleInterleaved(float *const BQ_R__ out,
+                            int outcount,
+                            const float *const BQ_R__ in,
                             int incount,
                             double ratio,
                             bool final = false);

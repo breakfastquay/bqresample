@@ -85,14 +85,16 @@ class Resampler::Impl
 public:
     virtual ~Impl() { }
     
-    virtual int resample(const float *const BQ_R__ *const BQ_R__ in, 
-                         float *const BQ_R__ *const BQ_R__ out,
+    virtual int resample(float *const BQ_R__ *const BQ_R__ out,
+                         int outcount,
+                         const float *const BQ_R__ *const BQ_R__ in, 
                          int incount,
                          double ratio,
                          bool final) = 0;
     
-    virtual int resampleInterleaved(const float *const BQ_R__ in, 
-                                    float *const BQ_R__ out,
+    virtual int resampleInterleaved(float *const BQ_R__ out,
+                                    int outcount,
+                                    const float *const BQ_R__ in, 
                                     int incount,
                                     double ratio,
                                     bool final) = 0;
@@ -113,14 +115,16 @@ public:
           int debugLevel);
     ~D_IPP();
 
-    int resample(const float *const BQ_R__ *const BQ_R__ in,
-                 float *const BQ_R__ *const BQ_R__ out,
+    int resample(float *const BQ_R__ *const BQ_R__ out,
+                 int outcount,
+                 const float *const BQ_R__ *const BQ_R__ in,
                  int incount,
                  double ratio,
                  bool final);
 
-    int resampleInterleaved(const float *const BQ_R__ in,
-                            float *const BQ_R__ out,
+    int resampleInterleaved(float *const BQ_R__ out,
+                            int outcount,
+                            const float *const BQ_R__ in,
                             int incount,
                             double ratio,
                             bool final = false);
@@ -270,8 +274,9 @@ D_IPP::setBufSize(int sz)
 }
 
 int
-D_IPP::resample(const float *const BQ_R__ *const BQ_R__ in,
-                float *const BQ_R__ *const BQ_R__ out,
+D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
+                int outcount,
+                const float *const BQ_R__ *const BQ_R__ in,
                 int incount,
                 double ratio,
                 bool final)
@@ -359,8 +364,9 @@ D_IPP::resample(const float *const BQ_R__ *const BQ_R__ in,
 }
 
 int
-D_IPP::resampleInterleaved(const float *const BQ_R__ in,
-                           float *const BQ_R__ out,
+D_IPP::resampleInterleaved(float *const BQ_R__ out,
+                           int outcount,
+                           const float *const BQ_R__ in,
                            int incount,
                            double ratio,
                            bool final)
@@ -468,14 +474,16 @@ public:
           int m_debugLevel);
     ~D_SRC();
 
-    int resample(const float *const BQ_R__ *const BQ_R__ in,
-                 float *const BQ_R__ *const BQ_R__ out,
+    int resample(float *const BQ_R__ *const BQ_R__ out,
+                 int outcount,
+                 const float *const BQ_R__ *const BQ_R__ in,
                  int incount,
                  double ratio,
                  bool final);
 
-    int resampleInterleaved(const float *const BQ_R__ in,
-                            float *const BQ_R__ out,
+    int resampleInterleaved(float *const BQ_R__ out,
+                            int outcount,
+                            const float *const BQ_R__ in,
                             int incount,
                             double ratio,
                             bool final = false);
@@ -543,15 +551,14 @@ D_SRC::~D_SRC()
 }
 
 int
-D_SRC::resample(const float *const BQ_R__ *const BQ_R__ in,
-                float *const BQ_R__ *const BQ_R__ out,
+D_SRC::resample(float *const BQ_R__ *const BQ_R__ out,
+                int outcount,
+                const float *const BQ_R__ *const BQ_R__ in,
                 int incount,
                 double ratio,
                 bool final)
 {
     SRC_DATA data;
-
-    int outcount = (int)lrint(ceil(incount * ratio));
 
     if (m_channels == 1) {
         data.data_in = const_cast<float *>(*in); //!!!???
@@ -595,15 +602,14 @@ D_SRC::resample(const float *const BQ_R__ *const BQ_R__ in,
 }
 
 int
-D_SRC::resampleInterleaved(const float *const BQ_R__ in,
-                           float *const BQ_R__ out,
+D_SRC::resampleInterleaved(float *const BQ_R__ out,
+                           int outcount,
+                           const float *const BQ_R__ in,
                            int incount,
                            double ratio,
                            bool final)
 {
     SRC_DATA data;
-
-    int outcount = (int)lrint(ceil(incount * ratio));
 
     data.data_in = const_cast<float *>(in);
     data.data_out = out;
@@ -645,14 +651,16 @@ public:
           int m_debugLevel);
     ~D_Resample();
 
-    int resample(const float *const BQ_R__ *const BQ_R__ in,
-                 float *const BQ_R__ *const BQ_R__ out,
+    int resample(float *const BQ_R__ *const BQ_R__ out,
+                 int outcount,
+                 const float *const BQ_R__ *const BQ_R__ in,
                  int incount,
                  double ratio,
                  bool final);
 
-    int resampleInterleaved(const float *const BQ_R__ in,
-                            float *const BQ_R__ out,
+    int resampleInterleaved(float *const BQ_R__ out,
+                            int outcount,
+                            const float *const BQ_R__ in,
                             int incount,
                             double ratio,
                             bool final);
@@ -721,8 +729,9 @@ D_Resample::~D_Resample()
 }
 
 int
-D_Resample::resample(const float *const BQ_R__ *const BQ_R__ in,
-                     float *const BQ_R__ *const BQ_R__ out,
+D_Resample::resample(float *const BQ_R__ *const BQ_R__ out,
+                     int outcount,
+                     const float *const BQ_R__ *const BQ_R__ in,
                      int incount,
                      double ratio,
                      bool final)
@@ -781,8 +790,9 @@ D_Resample::resample(const float *const BQ_R__ *const BQ_R__ in,
 }
 
 int
-D_Resample::resampleInterleaved(const float *const BQ_R__ in,
-                                float *const BQ_R__ out,
+D_Resample::resampleInterleaved(float *const BQ_R__ out,
+                                int outcount,
+                                const float *const BQ_R__ in,
                                 int incount,
                                 double ratio,
                                 bool final)
@@ -833,14 +843,16 @@ public:
             int debugLevel);
     ~D_Speex();
 
-    int resample(const float *const BQ_R__ *const BQ_R__ in,
-                 float *const BQ_R__ *const BQ_R__ out,
+    int resample(float *const BQ_R__ *const BQ_R__ out,
+                 int outcount,
+                 const float *const BQ_R__ *const BQ_R__ in,
                  int incount,
                  double ratio,
                  bool final);
 
-    int resampleInterleaved(const float *const BQ_R__ in,
-                            float *const BQ_R__ out,
+    int resampleInterleaved(float *const BQ_R__ out,
+                            int outcount,
+                            const float *const BQ_R__ in,
                             int incount,
                             double ratio,
                             bool final = false);
@@ -968,8 +980,9 @@ D_Speex::setRatio(double ratio)
 }
 
 int
-D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
-                  float *const BQ_R__ *const BQ_R__ out,
+D_Speex::resample(float *const BQ_R__ *const BQ_R__ out,
+                  int outcount,
+                  const float *const BQ_R__ *const BQ_R__ in,
                   int incount,
                   double ratio,
                   bool final)
@@ -979,7 +992,7 @@ D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
     }
 
     unsigned int uincount = incount;
-    unsigned int outcount = (unsigned int)lrint(ceil(incount * ratio)); //!!! inexact now
+    unsigned int uoutcount = outcount;
 
     float *data_in, *data_out;
 
@@ -1004,7 +1017,7 @@ D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
                                                         data_in,
                                                         &uincount,
                                                         data_out,
-                                                        &outcount);
+                                                        &uoutcount);
 
     if (err) {
         cerr << "Resampler::Resampler: Speex resampler returned error "
@@ -1016,15 +1029,16 @@ D_Speex::resample(const float *const BQ_R__ *const BQ_R__ in,
     }
 
     if (m_channels > 1) {
-        v_deinterleave(out, m_iout, m_channels, outcount);
+        v_deinterleave(out, m_iout, m_channels, uoutcount);
     }
 
-    return outcount;
+    return uoutcount;
 }
 
 int
-D_Speex::resampleInterleaved(const float *const BQ_R__ in,
-                             float *const BQ_R__ out,
+D_Speex::resampleInterleaved(float *const BQ_R__ out,
+                             int outcount,
+                             const float *const BQ_R__ in,
                              int incount,
                              double ratio,
                              bool final)
@@ -1034,7 +1048,7 @@ D_Speex::resampleInterleaved(const float *const BQ_R__ in,
     }
 
     unsigned int uincount = incount;
-    unsigned int outcount = (unsigned int)lrint(ceil(incount * ratio)); //!!! inexact now
+    unsigned int uoutcount = outcount;
 
     float *data_in = const_cast<float *>(in);
     float *data_out = out;
@@ -1043,7 +1057,7 @@ D_Speex::resampleInterleaved(const float *const BQ_R__ in,
                                                         data_in,
                                                         &uincount,
                                                         data_out,
-                                                        &outcount);
+                                                        &uoutcount);
 
     if (err) {
         cerr << "Resampler::Resampler: Speex resampler returned error "
@@ -1054,7 +1068,7 @@ D_Speex::resampleInterleaved(const float *const BQ_R__ in,
 #endif
     }
 
-    return outcount;
+    return uoutcount;
 }
 
 void
@@ -1188,19 +1202,25 @@ Resampler::~Resampler()
 }
 
 int 
-Resampler::resample(const float *const BQ_R__ *const BQ_R__ in,
-                    float *const BQ_R__ *const BQ_R__ out,
-                    int incount, double ratio, bool final)
+Resampler::resample(float *const BQ_R__ *const BQ_R__ out,
+                    int outcount,
+                    const float *const BQ_R__ *const BQ_R__ in,
+                    int incount,
+                    double ratio,
+                    bool final)
 {
-    return d->resample(in, out, incount, ratio, final);
+    return d->resample(out, outcount, in, incount, ratio, final);
 }
 
 int 
-Resampler::resampleInterleaved(const float *const BQ_R__ in,
-                               float *const BQ_R__ out,
-                               int incount, double ratio, bool final)
+Resampler::resampleInterleaved(float *const BQ_R__ out,
+                               int outcount,
+                               const float *const BQ_R__ in,
+                               int incount,
+                               double ratio,
+                               bool final)
 {
-    return d->resampleInterleaved(in, out, incount, ratio, final);
+    return d->resampleInterleaved(out, outcount, in, incount, ratio, final);
 }
 
 int

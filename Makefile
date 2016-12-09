@@ -75,6 +75,7 @@ ALLOCATOR_DEFINES 	:=
 
 
 SRC_DIR	:= src
+TEST_DIR := test
 SPEEX_DIR := speex
 HEADER_DIR := bqresample
 
@@ -84,24 +85,36 @@ HEADERS	:= $(wildcard $(HEADER_DIR)/*.h) $(wildcard $(SRC_DIR)/*.h)
 OBJECTS	:= $(SOURCES:.cpp=.o)
 OBJECTS	:= $(OBJECTS:.c=.o)
 
-CXXFLAGS := $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. -Wall -Werror -fpic
-CFLAGS	:= $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. -Wall -Werror -fpic
+TEST_SOURCES	:= $(wildcard $(TEST_DIR)/*.cpp)
+TEST_OBJECTS	:= $(TEST_SOURCES:.cpp=.o)
+
+CXXFLAGS := $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. -O3 -ffast-math -Wall -Werror -fpic -std=c++98
+CFLAGS	:= $(RESAMPLE_DEFINES) $(VECTOR_DEFINES) $(ALLOCATOR_DEFINES) -I. -O3 -ffast-math -Wall -Werror -fpic
 
 LIBRARY	:= libbqresample.a
 
 all:	$(LIBRARY)
 
+test:	$(LIBRARY) test-resampler
+	./test-resampler
+
 $(LIBRARY):	$(OBJECTS)
 	$(AR) rc $@ $^
 
+test-resampler:	test/TestResampler.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework
+
 clean:		
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) $(TEST_OBJECTS)
 
 distclean:	clean
-	rm -f $(LIBRARY)
+	rm -f $(LIBRARY) test-resampler
 
 depend:
-	makedepend -Y -fMakefile $(SOURCES) $(HEADERS)
+	makedepend -Y -fMakefile $(SOURCES) $(HEADERS) $(TEST_SOURCES)
 
 
 # DO NOT DELETE
+
+src/Resampler.o: bqresample/Resampler.h
+test/TestResampler.o: bqresample/Resampler.h
