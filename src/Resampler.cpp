@@ -51,12 +51,7 @@
 #include <ippsr.h>
 #include <ippac.h>
 #else
-// ippsResamplePolyphase functions were removed in IPPv7 and then
-// reinstated in IPPv7.1, but with a different API. This code hasn't
-// yet been updated to the newer API. See
-// https://software.intel.com/en-us/forums/intel-integrated-performance-primitives/topic/279130
-#pragma warning "Resampler implementation is available for IPP version 6.1 or earlier only: undefining HAVE_IPP"
-#undef HAVE_IPP
+#include <ipps.h>
 #endif
 #endif
 
@@ -172,8 +167,8 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
                   << endl;
     }
 
-    int nStep;
-    IppHintAlgorithm hint;
+    int nStep = 16;
+    IppHintAlgorithm hint = ippAlgHintFast;
 
     switch (quality) {
 
@@ -184,10 +179,8 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
         break;
 
     case Resampler::FastestTolerable:
-//        m_window = 48;
         nStep = 16;
         m_window = 16;
-//        nStep = 8;
         hint = ippAlgHintFast;
         break;
 
@@ -212,13 +205,39 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
         cerr << "bufsize = " << m_bufsize << ", window = " << m_window << ", nStep = " << nStep << ", history = " << m_history << endl;
     }
 
+#if (IPP_VERSION_MAJOR >= 7)
+    int specSize = 0;
+    ippsResamplePolyphaseGetSize_32f(float(m_window),
+                                     nStep,
+                                     &specSize,
+                                     hint);
+    if (specSize == 0) {
+#ifndef NO_EXCEPTIONS
+        throw Resampler::ImplementationError;
+#else        
+        abort();
+#endif
+    }
+#endif
+
     for (int c = 0; c < m_channels; ++c) {
+#if (IPP_VERSION_MAJOR < 7)
         ippsResamplePolyphaseInitAlloc_32f(&m_state[c],
                                            float(m_window),
                                            nStep,
                                            0.95f,
                                            9.0f,
                                            hint);
+#else
+        m_state[c] = (IppsResamplingPolyphase_32f *)ippsMalloc_8u(specSize);
+        ippsResamplePolyphaseInit_32f(float(m_window),
+                                      nStep,
+                                      0.95f,
+                                      9.0f,
+                                      m_state[c],
+                                      hint);
+#endif
+        
         m_lastread[c] = m_history;
         m_time[c] = m_history;
     }
@@ -244,7 +263,7 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
 D_IPP::~D_IPP()
 {
     for (int c = 0; c < m_channels; ++c) {
-        ippsResamplePolyphaseFree_32f(m_state[c]);
+        ippsFree(m_state[c]);
     }
 
     deallocate_channels(m_inbuf, m_channels);
@@ -291,8 +310,6 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                 double ratio,
                 bool final)
 {
-    int outcount = 0;
-
     if (ratio > m_factor) {
         m_factor = ratio;
         m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
@@ -310,7 +327,8 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
             m_inbuf[c][m_lastread[c] + i] = in[c][i];
         }
         m_lastread[c] += incount;
-        
+
+#if (IPP_VERSION_MAJOR < 7)
         ippsResamplePolyphase_32f(m_state[c],
                                   m_inbuf[c],
                                   m_lastread[c] - m_history - int(m_time[c]),
@@ -319,12 +337,22 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                                   0.97f,
                                   &m_time[c],
                                   &outcount);
+#else
+        ippsResamplePolyphase_32f(m_inbuf[c],
+                                  m_lastread[c] - m_history - int(m_time[c]),
+                                  m_outbuf[c],
+                                  ratio,
+                                  0.97f,
+                                  &m_time[c],
+                                  &outcount,
+                                  m_state[c]);
+#endif
 
         v_copy(out[c], m_outbuf[c], outcount);
 
-        ippsMove_32f(m_inbuf[c] + int(m_time[c]) - m_history,
-                     m_inbuf[c],
-                     m_lastread[c] + m_history - int(m_time[c]));
+        v_move(m_inbuf[c],
+               m_inbuf[c] + int(m_time[c]) - m_history,
+               m_lastread[c] + m_history - int(m_time[c]));
 
         m_lastread[c] -= int(m_time[c]) - m_history;
         m_time[c] -= int(m_time[c]) - m_history;
@@ -346,6 +374,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                 m_inbuf[c][m_lastread[c] + i] = 0.f;
             }
             
+#if (IPP_VERSION_MAJOR < 7)
             ippsResamplePolyphase_32f(m_state[c],
                                       m_inbuf[c],
                                       m_lastread[c] - int(m_time[c]),
@@ -354,6 +383,16 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                                       0.97f,
                                       &m_time[c],
                                       &additionalcount);
+#else
+            ippsResamplePolyphase_32f(m_inbuf[c],
+                                      m_lastread[c] - int(m_time[c]),
+                                      m_outbuf[c],
+                                      ratio,
+                                      0.97f,
+                                      &m_time[c],
+                                      &additionalcount,
+                                      m_state[c]);
+#endif
 
             if (m_debugLevel > 2) {
                 cerr << "incount = " << incount << ", outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << ", est space = " << lrintf(ceil(incount * ratio)) <<endl;
@@ -381,8 +420,6 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                            double ratio,
                            bool final)
 {
-    int outcount = 0;
-
     if (ratio > m_factor) {
         m_factor = ratio;
         m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
@@ -401,6 +438,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
         }
         m_lastread[c] += incount;
         
+#if (IPP_VERSION_MAJOR < 7)
         ippsResamplePolyphase_32f(m_state[c],
                                   m_inbuf[c],
                                   m_lastread[c] - m_history - int(m_time[c]),
@@ -409,10 +447,20 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                                   0.97f,
                                   &m_time[c],
                                   &outcount);
+#else
+        ippsResamplePolyphase_32f(m_inbuf[c],
+                                  m_lastread[c] - m_history - int(m_time[c]),
+                                  m_outbuf[c],
+                                  ratio,
+                                  0.97f,
+                                  &m_time[c],
+                                  &outcount,
+                                  m_state[c]);
+#endif
 
-        ippsMove_32f(m_inbuf[c] + int(m_time[c]) - m_history,
-                     m_inbuf[c],
-                     m_lastread[c] + m_history - int(m_time[c]));
+        v_move(m_inbuf[c],
+               m_inbuf[c] + int(m_time[c]) - m_history,
+               m_lastread[c] + m_history - int(m_time[c]));
 
         m_lastread[c] -= int(m_time[c]) - m_history;
         m_time[c] -= int(m_time[c]) - m_history;
@@ -439,6 +487,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                 m_inbuf[c][m_lastread[c] + i] = 0.f;
             }
             
+#if (IPP_VERSION_MAJOR < 7)
             ippsResamplePolyphase_32f(m_state[c],
                                       m_inbuf[c],
                                       m_lastread[c] - int(m_time[c]),
@@ -447,6 +496,16 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                                       0.97f,
                                       &m_time[c],
                                       &additionalcount);
+#else
+            ippsResamplePolyphase_32f(m_inbuf[c],
+                                      m_lastread[c] - int(m_time[c]),
+                                      m_outbuf[c],
+                                      ratio,
+                                      0.97f,
+                                      &m_time[c],
+                                      &additionalcount,
+                                      m_state[c]);
+#endif
 
             if (m_debugLevel > 2) {
                 cerr << "incount = " << incount << ", outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << ", est space = " << lrintf(ceil(incount * ratio)) <<endl;

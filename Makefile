@@ -21,12 +21,12 @@
 # may find it simplest to just add the bqresample source files to your
 # application's build system and not build a bqresample library at all.)
 
-RESAMPLE_DEFINES	:= -DUSE_SPEEX
+RESAMPLE_DEFINES	:= -DHAVE_IPP
 
 # Add any related includes and libraries here
 #
-THIRD_PARTY_INCLUDES	:=                   # e.g. -I/opt/intel/ipp/include
-THIRD_PARTY_LIBS	:=                   # e.g. -L/opt/intel/ipp/lib/intel64_lin -Wl,-Bstatic -lipps -lippvm -lippcore -Wl,-Bdynamic
+THIRD_PARTY_INCLUDES	:=  -I/opt/intel/ipp/include
+THIRD_PARTY_LIBS	:=  -L/opt/intel/ipp/lib/intel64_lin -Wl,-Bstatic -lipps -lippvm -lippcore -Wl,-Bdynamic
 
 
 # Add to VECTOR_DEFINES the relevant options for your desired
@@ -107,7 +107,7 @@ $(LIBRARY):	$(OBJECTS)
 	$(AR) rc $@ $^
 
 test-resampler:	test/TestResampler.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework $(THIRD_PARTY_LIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework -L../bqvec -lbqvec $(THIRD_PARTY_LIBS)
 
 clean:		
 	rm -f $(OBJECTS) $(TEST_OBJECTS)
