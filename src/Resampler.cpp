@@ -55,7 +55,8 @@
 // reinstated in IPPv7.1, but with a different API. This code hasn't
 // yet been updated to the newer API. See
 // https://software.intel.com/en-us/forums/intel-integrated-performance-primitives/topic/279130
-#error "Support is available for IPP version 6.1 or earlier only"
+#pragma warning "Resampler implementation is available for IPP version 6.1 or earlier only: undefining HAVE_IPP"
+#undef HAVE_IPP
 #endif
 #endif
 
