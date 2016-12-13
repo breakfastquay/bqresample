@@ -106,7 +106,7 @@ test:	$(LIBRARY) test-resampler
 $(LIBRARY):	$(OBJECTS)
 	$(AR) rc $@ $^
 
-test-resampler:	test/TestResampler.o
+test-resampler:	test/TestResampler.o $(LIBRARY)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework -L../bqvec -lbqvec $(THIRD_PARTY_LIBS)
 
 clean:		

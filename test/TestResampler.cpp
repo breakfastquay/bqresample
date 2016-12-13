@@ -19,6 +19,39 @@ BOOST_AUTO_TEST_SUITE(TestResampler)
 
 #define LEN(a) (int(sizeof(a)/sizeof(a[0])))
 
+static vector<float>
+sine(double samplerate, double frequency, int nsamples)
+{
+    vector<float> v(nsamples, 0.f);
+    for (int i = 0; i < nsamples; ++i) {
+        v[i] = sin ((i * 2.0 * M_PI * frequency) / samplerate);
+    }
+    return v;
+}
+
+#define COMPARE_N(a, b, n)                    \
+    for (int cmp_i = 0; cmp_i < n; ++cmp_i) { \
+        BOOST_CHECK_SMALL((a)[cmp_i] - (b)[cmp_i], 1e-4f);      \
+    }
+
+static const float guard_value = -999.f;
+
+BOOST_AUTO_TEST_CASE(interpolated_sine)
+{
+    // Interpolating a sinusoid should give us a sinusoid, once we've
+    // dropped the first few samples
+    vector<float> in = sine(8, 2, 1000); // 2Hz wave at 8Hz: [ 0, 1, 0, -1 ] etc
+    vector<float> expected = sine(16, 2, 2000);
+    vector<float> out(in.size() * 2 + 1, guard_value);
+    Resampler r(Resampler::FastestTolerable, 1);
+    r.resampleInterleaved(out.data(), out.size(), in.data(), in.size(), 2, true);
+    const float *outf = out.data() + 200, *expectedf = expected.data() + 200;
+    COMPARE_N(outf, expectedf, 600);
+    // should have an exact number of output samples
+    BOOST_CHECK_NE(out[out.size()-2], guard_value);
+    BOOST_CHECK_EQUAL(out[out.size()-1], guard_value);
+}
+
 BOOST_AUTO_TEST_CASE(overrun_interleaved)
 {
     // Check that the outcount argument is correctly used: any samples
@@ -37,6 +70,8 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
         Resampler::Best, Resampler::FastestTolerable, Resampler::Fastest
     };
 
+    bool failed = false;
+    
     for (int li = 0; li < LEN(lengths); ++li) {
         for (int cbi = 0; cbi < LEN(constructionBufferSizes); ++cbi) {
             for (int ri = 0; ri < LEN(ratios); ++ri) {
@@ -46,7 +81,7 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                     int constructionBufferSize = constructionBufferSizes[cbi];
                     double ratio = ratios[ri];
                     Resampler::Quality quality = qualities[qi];
-                    Resampler r(quality, channels, constructionBufferSize);
+                    Resampler r(quality, channels, constructionBufferSize, 3);
 
                     float *inbuf = new float[length * channels];
                     for (int i = 0; i < length; ++i) {
@@ -63,7 +98,7 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                     float *outbuf = new float[outbuflen * channels];
                     for (int i = outcount; i < outbuflen; ++i) {
                         for (int c = 0; c < channels; ++c) {
-                            outbuf[i*channels+c] = -999.f;
+                            outbuf[i*channels+c] = guard_value;
                         }
                     }
 
@@ -72,7 +107,10 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
 
                     for (int i = outcount; i < outbuflen; ++i) {
                         for (int c = 0; c < channels; ++c) {
-                            BOOST_CHECK_EQUAL(outbuf[i*channels+c], -999.f);
+                            BOOST_CHECK_EQUAL(outbuf[i*channels+c], guard_value);
+                            if (outbuf[i*channels+c] != guard_value) {
+                                failed = true;
+                            }
                         }
                     }
 
@@ -81,15 +119,28 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
 
                     for (int i = outcount; i < outbuflen; ++i) {
                         for (int c = 0; c < channels; ++c) {
-                            BOOST_CHECK_EQUAL(outbuf[i*channels+c], -999.f);
+                            BOOST_CHECK_EQUAL(outbuf[i*channels+c], guard_value);
+                            if (outbuf[i*channels+c] != guard_value) {
+                                failed = true;
+                            }
                         }
                     }
 
                     delete[] outbuf;
                     delete[] inbuf;
+
+                    if (failed) {
+                        cerr << "Test failed, abandoning remaining loop cycles"
+                             << endl;
+                        break;
+                    }
                 }
+
+                if (failed) break;
             }
+            if (failed) break;
         }
+        if (failed) break;
     }
 }
 

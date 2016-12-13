@@ -116,8 +116,8 @@ namespace Resamplers {
 class D_IPP : public Resampler::Impl
 {
 public:
-    D_IPP(Resampler::Quality quality, int channels, int maxBufferSize,
-          int debugLevel);
+    D_IPP(Resampler::Quality quality, int channels,
+          int maxBufferSize, int debugLevel);
     ~D_IPP();
 
     int resample(float *const BQ_R__ *const BQ_R__ out,
@@ -283,7 +283,9 @@ D_IPP::setBufSize(int sz)
 
     m_bufsize = sz;
 
-    cerr << m_bufsize << endl;
+    if (m_debugLevel > 1) {
+        cerr << m_bufsize << endl;
+    }
 
     int n1 = m_bufsize + m_history + 2;
     int n2 = (int)lrintf(ceil((m_bufsize - m_history) * m_factor + 2));
@@ -315,6 +317,10 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
         m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
     }
 
+    if (m_debugLevel > 2) {
+        cerr << "incount = " << incount << ", outcount passed in = " << outcount << ", ratio = " << ratio << ", final = " << final << endl;
+    }
+
     for (int c = 0; c < m_channels; ++c) {
         if (m_lastread[c] + incount + m_history > m_bufsize) {
             setBufSize(m_lastread[c] + incount + m_history);
@@ -334,7 +340,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                                   m_lastread[c] - m_history - int(m_time[c]),
                                   m_outbuf[c],
                                   ratio,
-                                  0.97f,
+                                  1.0f,
                                   &m_time[c],
                                   &outcount);
 #else
@@ -342,7 +348,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                                   m_lastread[c] - m_history - int(m_time[c]),
                                   m_outbuf[c],
                                   ratio,
-                                  0.97f,
+                                  1.0f,
                                   &m_time[c],
                                   &outcount,
                                   m_state[c]);
@@ -380,7 +386,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                                       m_lastread[c] - int(m_time[c]),
                                       m_outbuf[c],
                                       ratio,
-                                      0.97f,
+                                      1.0f,
                                       &m_time[c],
                                       &additionalcount);
 #else
@@ -388,7 +394,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
                                       m_lastread[c] - int(m_time[c]),
                                       m_outbuf[c],
                                       ratio,
-                                      0.97f,
+                                      1.0f,
                                       &m_time[c],
                                       &additionalcount,
                                       m_state[c]);
@@ -402,11 +408,6 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
 
             outcount += additionalcount;
         }
-    }
-
-    for (int c = 0; c < m_channels; ++c) {
-        ippsThreshold_32f_I(out[c], outcount, 1.f, ippCmpGreater);
-        ippsThreshold_32f_I(out[c], outcount, -1.f, ippCmpLess);
     }
 
     return outcount;
@@ -423,6 +424,10 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
     if (ratio > m_factor) {
         m_factor = ratio;
         m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
+    }
+
+    if (m_debugLevel > 2) {
+        cerr << "incount = " << incount << ", outcount passed in = " << outcount << ", ratio = " << ratio << ", final = " << final << endl;
     }
 
     for (int c = 0; c < m_channels; ++c) {
@@ -444,7 +449,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                                   m_lastread[c] - m_history - int(m_time[c]),
                                   m_outbuf[c],
                                   ratio,
-                                  0.97f,
+                                  1.0f,
                                   &m_time[c],
                                   &outcount);
 #else
@@ -452,7 +457,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                                   m_lastread[c] - m_history - int(m_time[c]),
                                   m_outbuf[c],
                                   ratio,
-                                  0.97f,
+                                  1.0f,
                                   &m_time[c],
                                   &outcount,
                                   m_state[c]);
@@ -493,7 +498,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                                       m_lastread[c] - int(m_time[c]),
                                       m_outbuf[c],
                                       ratio,
-                                      0.97f,
+                                      1.0f,
                                       &m_time[c],
                                       &additionalcount);
 #else
@@ -501,7 +506,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
                                       m_lastread[c] - int(m_time[c]),
                                       m_outbuf[c],
                                       ratio,
-                                      0.97f,
+                                      1.0f,
                                       &m_time[c],
                                       &additionalcount,
                                       m_state[c]);
@@ -519,9 +524,6 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
 
         outcount += additionalcount;
     }
-
-    ippsThreshold_32f_I(out, outcount * m_channels, 1.f, ippCmpGreater);
-    ippsThreshold_32f_I(out, outcount * m_channels, -1.f, ippCmpLess);
 
     return outcount;
 }
