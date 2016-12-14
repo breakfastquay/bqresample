@@ -47,12 +47,22 @@ public:
     enum Exception { ImplementationError };
 
     /**
-     * Construct a resampler with the given quality level and channel
-     * count.  maxBufferSize gives a bound on the maximum incount size
-     * that may be passed to the resample function before the
-     * resampler needs to reallocate its internal buffers.
+     * Construct a resampler with the given quality level, channel
+     * count, and initial sample rate.
+     *
+     * The initial sample rate is the rate of the expected input prior
+     * to resampling, which may be used to determine the filter
+     * bandwidth for the quality setting. If you don't know what this
+     * will be, you can provide an arbitrary rate (such as the
+     * default) and the resampler will work fine, but quality may not
+     * be as designed.
+     *
+     * maxBufferSize gives a bound on the maximum incount size that
+     * may be passed to the resample function before the resampler
+     * needs to reallocate its internal buffers.
      */
     Resampler(Quality quality, int channels,
+              double initialSampleRate = 44100,
               int maxBufferSize = 0, int debugLevel = 0);
     ~Resampler();
 
