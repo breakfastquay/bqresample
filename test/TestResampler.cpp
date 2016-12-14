@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE(interpolated_sine)
     vector<float> in = sine(8, 2, 1000); // 2Hz wave at 8Hz: [ 0, 1, 0, -1 ] etc
     vector<float> expected = sine(16, 2, 2000);
     vector<float> out(in.size() * 2 + 1, guard_value);
-    Resampler r(Resampler::FastestTolerable, 1);
+    Resampler r(Resampler::Parameters(), 1);
     r.resampleInterleaved(out.data(), out.size(), in.data(), in.size(), 2, true);
     const float *outf = out.data() + 200, *expectedf = expected.data() + 200;
     COMPARE_N(outf, expectedf, 600);
@@ -78,10 +78,12 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                 for (int qi = 0; qi < LEN(qualities); ++qi) {
                     
                     int length = lengths[li];
-                    int constructionBufferSize = constructionBufferSizes[cbi];
                     double ratio = ratios[ri];
-                    Resampler::Quality quality = qualities[qi];
-                    Resampler r(quality, channels, constructionBufferSize, 3);
+                    Resampler::Parameters parameters;
+                    parameters.quality = qualities[qi];
+                    parameters.maxBufferSize = constructionBufferSizes[cbi];
+                    parameters.debugLevel = 3;
+                    Resampler r(parameters, channels);
 
                     float *inbuf = new float[length * channels];
                     for (int i = 0; i < length; ++i) {

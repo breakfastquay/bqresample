@@ -1099,13 +1099,11 @@ D_Speex::reset()
 
 } /* end namespace Resamplers */
 
-Resampler::Resampler(Resampler::Quality quality,
-                     int channels, double initialSampleRate,
-                     int maxBufferSize, int debugLevel)
+Resampler::Resampler(Resampler::Parameters params, int channels)
 {
     m_method = -1;
     
-    switch (quality) {
+    switch (params.quality) {
 
     case Resampler::Best:
 #ifdef HAVE_IPP
@@ -1154,9 +1152,7 @@ Resampler::Resampler(Resampler::Quality quality,
     }
 
     if (m_method == -1) {
-        cerr << "Resampler::Resampler(" << quality << ", " << channels
-                  << ", " << maxBufferSize << "): No implementation available!"
-                  << endl;
+        cerr << "Resampler::Resampler: No implementation available!" << endl;
         abort();
     }
 
@@ -1164,11 +1160,11 @@ Resampler::Resampler(Resampler::Quality quality,
     case 0:
 #ifdef HAVE_IPP
         d = new Resamplers::D_IPP
-            (quality, channels, initialSampleRate, maxBufferSize, debugLevel);
+            (params.quality,
+             channels,
+             params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
-        cerr << "Resampler::Resampler(" << quality << ", " << channels
-                  << ", " << maxBufferSize << "): No implementation available!"
-                  << endl;
+        cerr << "Resampler::Resampler: No implementation available!" << endl;
         abort();
 #endif
         break;
@@ -1176,11 +1172,11 @@ Resampler::Resampler(Resampler::Quality quality,
     case 1:
 #ifdef HAVE_LIBSAMPLERATE
         d = new Resamplers::D_SRC
-            (quality, channels, initialSampleRate, maxBufferSize, debugLevel);
+            (params.quality,
+             channels,
+             params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
-        cerr << "Resampler::Resampler(" << quality << ", " << channels
-                  << ", " << maxBufferSize << "): No implementation available!"
-                  << endl;
+        cerr << "Resampler::Resampler: No implementation available!" << endl;
         abort();
 #endif
         break;
@@ -1188,11 +1184,11 @@ Resampler::Resampler(Resampler::Quality quality,
     case 2:
 #ifdef USE_SPEEX
         d = new Resamplers::D_Speex
-            (quality, channels, initialSampleRate, maxBufferSize, debugLevel);
+            (params.quality,
+             channels,
+             params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
-        cerr << "Resampler::Resampler(" << quality << ", " << channels
-                  << ", " << maxBufferSize << "): No implementation available!"
-                  << endl;
+        cerr << "Resampler::Resampler: No implementation available!" << endl;
         abort();
 #endif
         break;
@@ -1200,21 +1196,19 @@ Resampler::Resampler(Resampler::Quality quality,
     case 3:
 #ifdef HAVE_LIBRESAMPLE
         d = new Resamplers::D_Resample
-            (quality, channels, initialSampleRate, maxBufferSize, debugLevel);
+            (params.quality,
+             channels,
+             params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
-        cerr << "Resampler::Resampler(" << quality << ", " << channels
-                  << ", " << maxBufferSize << "): No implementation available!"
-                  << endl;
+        cerr << "Resampler::Resampler: No implementation available!" << endl;
         abort();
 #endif
         break;
     }
 
     if (!d) {
-        cerr << "Resampler::Resampler(" << quality << ", " << channels
-                  << ", " << maxBufferSize
-                  << "): Internal error: No implementation selected"
-                  << endl;
+        cerr << "Resampler::Resampler: Internal error: No implementation selected"
+             << endl;
         abort();
     }
 }

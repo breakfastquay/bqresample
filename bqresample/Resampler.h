@@ -46,24 +46,49 @@ public:
     enum Quality { Best, FastestTolerable, Fastest };
     enum Exception { ImplementationError };
 
+    struct Parameters {
+
+        /**
+         * Resampler filter quality level.
+         */
+        Quality quality;
+
+        /** 
+         * Rate of expected input prior to resampling: may be used to
+         * determine the filter bandwidth for the quality setting. If
+         * you don't know what this will be, you can provide an
+         * arbitrary rate (such as the default) and the resampler will
+         * work fine, but quality may not be as designed.
+         */
+        double initialSampleRate;
+
+        /** 
+         * Bound on the maximum incount size that may be passed to the
+         * resample function before the resampler needs to reallocate
+         * its internal buffers.
+         */
+        int maxBufferSize;
+
+        /**
+         * Debug output level, from 0 to 3. Controls the amount of
+         * debug information printed to stderr.
+         */
+        int debugLevel;
+
+        Parameters() :
+            quality(FastestTolerable),
+            initialSampleRate(44100),
+            maxBufferSize(0),
+            debugLevel(0) { }
+    };
+    
     /**
-     * Construct a resampler with the given quality level, channel
-     * count, and initial sample rate.
-     *
-     * The initial sample rate is the rate of the expected input prior
-     * to resampling, which may be used to determine the filter
-     * bandwidth for the quality setting. If you don't know what this
-     * will be, you can provide an arbitrary rate (such as the
-     * default) and the resampler will work fine, but quality may not
-     * be as designed.
-     *
-     * maxBufferSize gives a bound on the maximum incount size that
-     * may be passed to the resample function before the resampler
-     * needs to reallocate its internal buffers.
+     * Construct a resampler to process the given number of channels,
+     * with the given quality level, initial sample rate, and other
+     * parameters.
      */
-    Resampler(Quality quality, int channels,
-              double initialSampleRate = 44100,
-              int maxBufferSize = 0, int debugLevel = 0);
+    Resampler(Parameters parameters, int channels);
+    
     ~Resampler();
 
     /**
