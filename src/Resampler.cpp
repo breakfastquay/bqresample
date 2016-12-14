@@ -199,6 +199,21 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
     }
 
     m_factor = 8; // initial upper bound on m_ratio, may be amended later
+
+    // This is largely based on the IPP docs and examples. Adapted
+    // from the docs:
+    //
+    //    m_time defines the time value for which the first output
+    //    sample is calculated. The input vector with indices less
+    //    than m_time [whose initial value is m_history below]
+    //    contains the history data of filters.
+    //
+    //    The history length is [(1/2) window * max(1, 1/factor) ]+1
+    //    where window is the size of the ideal lowpass filter
+    //    window. The input vector must contain the same number of
+    //    elements with indices greater than m_time + length for the
+    //    right filter wing for the last element.
+    
     m_history = int(m_window * 0.5 * max(1.0, 1.0 / m_factor)) + 1;
 
     m_state = new IppsResamplingPolyphase_32f *[m_channels];
@@ -343,6 +358,10 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
         m_lastread[c] += incount;
     }
 
+    if (m_debugLevel > 2) {
+        cerr << "lastread advanced to " << m_lastread[0] << endl;
+    }
+
     int got = doResample(outspace, ratio, final);
 
     for (int c = 0; c < m_channels; ++c) {
@@ -382,6 +401,11 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
         m_lastread[c] += incount;
     }
 
+    if (m_debugLevel > 2) {
+        cerr << "lastread advanced to " << m_lastread[0] << " after injection of "
+             << incount << " samples" << endl;
+    }
+
     int got = doResample(outspace, ratio, final);
 
     v_interleave(out, m_outbuf, m_channels, got);
@@ -392,18 +416,33 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
 int
 D_IPP::doResample(int outspace, double ratio, bool final)
 {
-    (void)outspace;//!!!
-    
     int outcount = 0;
     
     for (int c = 0; c < m_channels; ++c) {
 
-        outcount = 0;
+        int n = m_lastread[c] - m_history - int(m_time[c]);
+
+        if (c == 0 && m_debugLevel > 2) {
+            cerr << "before resample call, time = " << m_time[c] << endl;
+        }
+
+        // We're committed to not overrunning outspace, so we need to
+        // offer the resampler only enough samples to ensure it won't
+
+        int limit = int(floor(outspace / ratio));
+        if (n > limit) {
+            if (c == 0 && m_debugLevel > 1) {
+                cerr << "trimming input samples from " << n << " to " << limit
+                     << " to avoid overrunning " << outspace << " at output"
+                     << endl;
+            }
+            n = limit;
+        }
         
 #if (IPP_VERSION_MAJOR < 7)
         ippsResamplePolyphase_32f(m_state[c],
                                   m_inbuf[c],
-                                  m_lastread[c] - m_history - int(m_time[c]),
+                                  n,
                                   m_outbuf[c],
                                   ratio,
                                   1.0f,
@@ -411,7 +450,7 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                   &outcount);
 #else
         ippsResamplePolyphase_32f(m_inbuf[c],
-                                  m_lastread[c] - m_history - int(m_time[c]),
+                                  n,
                                   m_outbuf[c],
                                   ratio,
                                   1.0f,
@@ -420,13 +459,29 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                   m_state[c]);
 #endif
 
+        int t = int(round(m_time[c]));
+        
+        if (c == 0 && m_debugLevel > 2) {
+            cerr << "converted " << n << " samples to " << outcount
+                 << ", time advanced to " << t << endl;
+            cerr << "will move " << m_lastread[c] + m_history - t
+                 << " unconverted samples back from index " << t - m_history
+                 << " to 0" << endl;
+        }
+
         v_move(m_inbuf[c],
-               m_inbuf[c] + int(m_time[c]) - m_history,
-               m_lastread[c] + m_history - int(m_time[c]));
+               m_inbuf[c] + t - m_history,
+               m_lastread[c] + m_history - t);
 
-        m_lastread[c] -= int(m_time[c]) - m_history;
-        m_time[c] -= int(m_time[c]) - m_history;
+        m_lastread[c] -= t - m_history;
+        m_time[c] -= t - m_history;
 
+        if (c == 0 && m_debugLevel > 2) {
+            cerr << "lastread reduced to " << m_lastread[c]
+                 << ", time reduced to " << m_time[c]
+                 << endl;
+        }
+        
         if (final) {
 
             // Looks like this actually produces too many samples
@@ -472,6 +527,10 @@ D_IPP::doResample(int outspace, double ratio, bool final)
         }
     }
 
+    if (m_debugLevel > 2) {
+        cerr << "returning " << outcount << " samples" << endl;
+    }
+    
     return outcount;
 }
 

@@ -106,6 +106,10 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                         }
                     }
 
+                    cerr << "\nTesting with length = " << length << ", ratio = "
+                         << ratio << ", outcount = " << outcount << ", final = false"
+                         << endl;
+                    
                     r.resampleInterleaved
                         (outbuf, outcount, inbuf, length, ratio, false);
 
@@ -123,6 +127,10 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                              << endl;
                         break;
                     }
+
+                    cerr << "\nTesting with length = " << length << ", ratio = "
+                         << ratio << ", outcount = " << outcount << ", final = true"
+                         << endl;
 
                     r.resampleInterleaved
                         (outbuf, outcount, inbuf, length, ratio, true);
