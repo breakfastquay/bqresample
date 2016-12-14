@@ -206,7 +206,13 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
     m_lastread = new int[m_channels];
     m_time = new double[m_channels];
 
-    m_bufsize = maxBufferSize + m_history;
+    m_inbufsz = 0;
+    m_outbufsz = 0;
+    m_inbuf = 0;
+    m_outbuf = 0;
+    m_bufsize = 0;
+    
+    setBufSize(maxBufferSize + m_history);
 
     if (m_debugLevel > 1) {
         cerr << "bufsize = " << m_bufsize << ", window = " << m_window << ", nStep = " << nStep << ", history = " << m_history << endl;
@@ -249,19 +255,6 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
         m_time[c] = m_history;
     }
 
-    m_inbufsz = m_bufsize + m_history + 2;
-    if (m_debugLevel > 1) {
-        cerr << "inbuf allocating " << m_bufsize << " + " << m_history << " + 2 = " << m_inbufsz << endl;
-    }
-
-    m_outbufsz = lrintf(ceil((m_bufsize - m_history) * m_factor + 2));
-    if (m_debugLevel > 1) {
-        cerr << "outbuf allocating (" << m_bufsize << " - " << m_history << ") * " << m_factor << " + 2 = " << m_outbufsz << endl;
-    }
-
-    m_inbuf  = allocate_and_zero_channels<float>(m_channels, m_inbufsz);
-    m_outbuf = allocate_and_zero_channels<float>(m_channels, m_outbufsz);
-
     if (m_debugLevel > 1) {
         cerr << "Resampler init done" << endl;
     }
@@ -285,7 +278,11 @@ void
 D_IPP::setBufSize(int sz)
 {
     if (m_debugLevel > 1) {
-        cerr << "resize bufsize " << m_bufsize << " -> ";
+        if (m_bufsize > 0) {
+            cerr << "resize bufsize " << m_bufsize << " -> ";
+        } else {
+            cerr << "initialise bufsize to ";
+        }
     }
 
     m_bufsize = sz;
@@ -295,10 +292,15 @@ D_IPP::setBufSize(int sz)
     }
 
     int n1 = m_bufsize + m_history + 2;
+
+    if (m_debugLevel > 1) {
+        cerr << "inbuf allocating " << m_bufsize << " + " << m_history << " + 2 = " << n1 << endl;
+    }
+
     int n2 = (int)lrintf(ceil((m_bufsize - m_history) * m_factor + 2));
 
     if (m_debugLevel > 1) {
-        cerr << "(outbufsize = " << n2 << ")" << endl;
+        cerr << "outbuf allocating (" << m_bufsize << " - " << m_history << ") * " << m_factor << " + 2 = " << n2 << endl;
     }
 
     m_inbuf = reallocate_and_zero_extend_channels
@@ -313,7 +315,7 @@ D_IPP::setBufSize(int sz)
 
 int
 D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
-                int outcount,
+                int outspace,
                 const float *const BQ_R__ *const BQ_R__ in,
                 int incount,
                 double ratio,
@@ -325,7 +327,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
     }
 
     if (m_debugLevel > 2) {
-        cerr << "incount = " << incount << ", outcount passed in = " << outcount << ", ratio = " << ratio << ", final = " << final << endl;
+        cerr << "incount = " << incount << ", ratio = " << ratio << ", est space = " << lrintf(ceil(incount * ratio)) << ", outspace = " << outspace << ", final = " << final << endl;
     }
 
     for (int c = 0; c < m_channels; ++c) {
@@ -341,7 +343,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
         m_lastread[c] += incount;
     }
 
-    int got = doResample(outcount, ratio, final);
+    int got = doResample(outspace, ratio, final);
 
     for (int c = 0; c < m_channels; ++c) {
         v_copy(out[c], m_outbuf[c], got);
@@ -352,7 +354,7 @@ D_IPP::resample(float *const BQ_R__ *const BQ_R__ out,
 
 int
 D_IPP::resampleInterleaved(float *const BQ_R__ out,
-                           int outcount,
+                           int outspace,
                            const float *const BQ_R__ in,
                            int incount,
                            double ratio,
@@ -364,7 +366,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
     }
 
     if (m_debugLevel > 2) {
-        cerr << "incount = " << incount << ", ratio = " << ratio << ", est space = " << lrintf(ceil(incount * ratio)) << ", outcount passed in = " << outcount << ", final = " << final << endl;
+        cerr << "incount = " << incount << ", ratio = " << ratio << ", est space = " << lrintf(ceil(incount * ratio)) << ", outspace = " << outspace << ", final = " << final << endl;
     }
 
     for (int c = 0; c < m_channels; ++c) {
@@ -380,7 +382,7 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
         m_lastread[c] += incount;
     }
 
-    int got = doResample(outcount, ratio, final);
+    int got = doResample(outspace, ratio, final);
 
     v_interleave(out, m_outbuf, m_channels, got);
 
@@ -388,10 +390,16 @@ D_IPP::resampleInterleaved(float *const BQ_R__ out,
 }
 
 int
-D_IPP::doResample(int outcount, double ratio, bool final)
+D_IPP::doResample(int outspace, double ratio, bool final)
 {
+    (void)outspace;//!!!
+    
+    int outcount = 0;
+    
     for (int c = 0; c < m_channels; ++c) {
 
+        outcount = 0;
+        
 #if (IPP_VERSION_MAJOR < 7)
         ippsResamplePolyphase_32f(m_state[c],
                                   m_inbuf[c],
