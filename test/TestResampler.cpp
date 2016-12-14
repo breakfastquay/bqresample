@@ -61,13 +61,15 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
     // resampler ratios that reduce, leave unchanged, and raise the
     // sample rate, and with all quality settings.
 
+    // Options are ordered from most normal/likely to least.
+    
     int channels = 2;
 
-    int lengths[] = { 6, 6000 };
+    int lengths[] = { 6000, 6 };
     int constructionBufferSizes[] = { 0, 1000 };
-    double ratios[] = { 0.1, 1.0, 10.0 };
+    double ratios[] = { 1.0, 10.0, 0.1 };
     Resampler::Quality qualities[] = {
-        Resampler::Best, Resampler::FastestTolerable, Resampler::Fastest
+        Resampler::FastestTolerable, Resampler::Best, Resampler::Fastest
     };
 
     bool failed = false;
@@ -114,6 +116,12 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                                 failed = true;
                             }
                         }
+                    }
+
+                    if (failed) {
+                        cerr << "Test failed, abandoning remaining loop cycles"
+                             << endl;
+                        break;
                     }
 
                     r.resampleInterleaved
