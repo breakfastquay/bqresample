@@ -495,14 +495,25 @@ D_IPP::doResample(int outspace, double ratio, bool final)
 
             int additionalcount = 0;
 
+            if (c == 0 && m_debugLevel > 2) {
+                cerr << "final call, padding input with " << m_history
+                     << " zeros (symmetrical with m_history)" << endl;
+            }
+            
             for (int i = 0; i < m_history; ++i) {
                 m_inbuf[c][m_lastread[c] + i] = 0.f;
             }
+
+            if (c == 0 && m_debugLevel > 2) {
+                cerr << "before resample call, time = " << m_time[c] << endl;
+            }
+
+            int n = m_lastread[c] - int(m_time[c]);
             
 #if (IPP_VERSION_MAJOR < 7)
             ippsResamplePolyphase_32f(m_state[c],
                                       m_inbuf[c],
-                                      m_lastread[c] - int(m_time[c]),
+                                      n,
                                       m_outbuf[c],
                                       ratio,
                                       1.0f,
@@ -510,7 +521,7 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                       &additionalcount);
 #else
             ippsResamplePolyphase_32f(m_inbuf[c],
-                                      m_lastread[c] - int(m_time[c]),
+                                      n,
                                       m_outbuf[c],
                                       ratio,
                                       1.0f,
@@ -518,8 +529,10 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                       &additionalcount,
                                       m_state[c]);
 #endif
-
-            if (m_debugLevel > 2) {
+        
+            if (c == 0 && m_debugLevel > 2) {
+                cerr << "converted " << n << " samples to " << additionalcount
+                     << ", time advanced to " << m_time[c] << endl;
                 cerr << "outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << endl;
             }
 
