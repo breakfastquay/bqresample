@@ -482,7 +482,7 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                  << endl;
         }
         
-        if (final) {
+        if (final && n < limit) {
 
             // Looks like this actually produces too many samples
             // (additionalcount is a few samples too large).
@@ -508,12 +508,22 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                 cerr << "before resample call, time = " << m_time[c] << endl;
             }
 
-            int n = m_lastread[c] - int(m_time[c]);
+            int nAdditional = m_lastread[c] - int(m_time[c]);
+
+            if (n + nAdditional > limit) {
+                if (c == 0 && m_debugLevel > 1) {
+                    cerr << "trimming final input samples from " << nAdditional
+                         << " to " << (limit - n)
+                         << " to avoid overrunning " << outspace << " at output"
+                         << endl;
+                }
+                nAdditional = limit - n;
+            }
             
 #if (IPP_VERSION_MAJOR < 7)
             ippsResamplePolyphase_32f(m_state[c],
                                       m_inbuf[c],
-                                      n,
+                                      nAdditional,
                                       m_outbuf[c],
                                       ratio,
                                       1.0f,
@@ -521,7 +531,7 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                       &additionalcount);
 #else
             ippsResamplePolyphase_32f(m_inbuf[c],
-                                      n,
+                                      nAdditional,
                                       m_outbuf[c],
                                       ratio,
                                       1.0f,
@@ -536,7 +546,9 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                 cerr << "outcount = " << outcount << ", additionalcount = " << additionalcount << ", sum " << outcount + additionalcount << endl;
             }
 
-            outcount += additionalcount;
+            if (c == 0) {
+                outcount += additionalcount;
+            }
         }
     }
 
