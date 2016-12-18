@@ -84,7 +84,6 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                     Resampler::Parameters parameters;
                     parameters.quality = qualities[qi];
                     parameters.maxBufferSize = constructionBufferSizes[cbi];
-                    parameters.debugLevel = 3;
                     Resampler r(parameters, channels);
 
                     float *inbuf = new float[length * channels];
@@ -105,11 +104,11 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                             outbuf[i*channels+c] = guard_value;
                         }
                     }
-
+/*
                     cerr << "\nTesting with length = " << length << ", ratio = "
                          << ratio << ", outcount = " << outcount << ", final = false"
                          << endl;
-                    
+*/                    
                     r.resampleInterleaved
                         (outbuf, outcount, inbuf, length, ratio, false);
 
@@ -127,11 +126,11 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                              << endl;
                         break;
                     }
-
+/*
                     cerr << "\nContinuing with length = " << length << ", ratio = "
                          << ratio << ", outcount = " << outcount << ", final = true"
                          << endl;
-
+*/
                     r.resampleInterleaved
                         (outbuf, outcount, inbuf, length, ratio, true);
 
