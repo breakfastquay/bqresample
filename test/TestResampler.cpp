@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                         break;
                     }
 
-                    cerr << "\nTesting with length = " << length << ", ratio = "
+                    cerr << "\nContinuing with length = " << length << ", ratio = "
                          << ratio << ", outcount = " << outcount << ", final = true"
                          << endl;
 

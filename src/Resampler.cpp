@@ -422,6 +422,19 @@ D_IPP::doResample(int outspace, double ratio, bool final)
 
         int n = m_lastread[c] - m_history - int(m_time[c]);
 
+        if (c == 0) {
+            cerr << "at start, lastread = " << m_lastread[c] << ", history = "
+                 << m_history << ", time = " << m_time[c] << ", therefore n = "
+                 << n << endl;
+        }
+
+        if (n <= 0) {
+            if (c == 0) {
+                cerr << "not enough input samples to do anything" << endl;
+            }
+            continue;
+        }
+        
         if (c == 0 && m_debugLevel > 2) {
             cerr << "before resample call, time = " << m_time[c] << endl;
         }
