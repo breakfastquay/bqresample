@@ -277,9 +277,15 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
 
 D_IPP::~D_IPP()
 {
+#if (IPP_VERSION_MAJOR < 7)
+    for (int c = 0; c < m_channels; ++c) {
+        ippsResamplePolyphaseFree_32f(m_state[c]);
+    }
+#else
     for (int c = 0; c < m_channels; ++c) {
         ippsFree(m_state[c]);
     }
+#endif
 
     deallocate_channels(m_inbuf, m_channels);
     deallocate_channels(m_outbuf, m_channels);
@@ -1108,7 +1114,7 @@ D_Speex::resample(float *const BQ_R__ *const BQ_R__ out,
                   const float *const BQ_R__ *const BQ_R__ in,
                   int incount,
                   double ratio,
-                  bool final)
+                  bool)
 {
     if (ratio != m_lastratio) {
         setRatio(ratio);
@@ -1164,7 +1170,7 @@ D_Speex::resampleInterleaved(float *const BQ_R__ out,
                              const float *const BQ_R__ in,
                              int incount,
                              double ratio,
-                             bool final)
+                             bool)
 {
     if (ratio != m_lastratio) {
         setRatio(ratio);
