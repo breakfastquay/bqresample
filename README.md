@@ -18,12 +18,8 @@ C++ standard required: C++98 (does not use C++11 or newer features)
    then make test. Or else use one of the pre-edited Makefiles in the
    build directory.
 
+[![Build Status](https://travis-ci.org/breakfastquay/bqresample.svg?branch=master)](https://travis-ci.org/breakfastquay/bqresample)
+
 Copyright 2007-2017 Particular Programs Ltd.
 Uses Speex code, see speex/COPYING for copyright and licence information.
-
-This code originated as part of the Rubber Band Library written by the
-same authors (see https://bitbucket.org/breakfastquay/rubberband/).
-It has been pulled out into a separate library and relicensed under a
-more permissive licence: a BSD/MIT-style licence, as opposed to the
-GPL used for Rubber Band.  See the file COPYING for details.
 

@@ -36,7 +36,7 @@ sine(double samplerate, double frequency, int nsamples)
 
 static const float guard_value = -999.f;
 
-BOOST_AUTO_TEST_CASE(interpolated_sine)
+BOOST_AUTO_TEST_CASE(interpolated_sine_1ch_interleaved)
 {
     // Interpolating a sinusoid should give us a sinusoid, once we've
     // dropped the first few samples
@@ -44,12 +44,42 @@ BOOST_AUTO_TEST_CASE(interpolated_sine)
     vector<float> expected = sine(16, 2, 2000);
     vector<float> out(in.size() * 2 + 1, guard_value);
     Resampler r(Resampler::Parameters(), 1);
-    r.resampleInterleaved(out.data(), out.size(), in.data(), in.size(), 2, true);
+    int returned = r.resampleInterleaved
+        (out.data(), out.size(), in.data(), in.size(), 2, true);
+
+    // because final was true, we expect to have exactly the right
+    // number of samples back
+    BOOST_CHECK_EQUAL(returned, int(in.size() * 2));
+    BOOST_CHECK_NE(out[returned-1], guard_value);
+    BOOST_CHECK_EQUAL(out[returned], guard_value);
+
+    // and they should match the expected data, at least in the middle
     const float *outf = out.data() + 200, *expectedf = expected.data() + 200;
     COMPARE_N(outf, expectedf, 600);
-    // should have an exact number of output samples
-    BOOST_CHECK_NE(out[out.size()-2], guard_value);
-    BOOST_CHECK_EQUAL(out[out.size()-1], guard_value);
+}
+
+BOOST_AUTO_TEST_CASE(interpolated_sine_1ch_noninterleaved)
+{
+    // Interpolating a sinusoid should give us a sinusoid, once we've
+    // dropped the first few samples
+    vector<float> in = sine(8, 2, 1000); // 2Hz wave at 8Hz: [ 0, 1, 0, -1 ] etc
+    vector<float> expected = sine(16, 2, 2000);
+    vector<float> out(in.size() * 2 + 1, guard_value);
+    const float *in_data = in.data();
+    float *out_data = out.data();
+    Resampler r(Resampler::Parameters(), 1);
+    int returned = r.resample
+        (&out_data, out.size(), &in_data, in.size(), 2, true);
+
+    // because final was true, we expect to have exactly the right
+    // number of samples back
+    BOOST_CHECK_EQUAL(returned, int(in.size() * 2));
+    BOOST_CHECK_NE(out[returned-1], guard_value);
+    BOOST_CHECK_EQUAL(out[returned], guard_value);
+
+    // and they should match the expected data, at least in the middle
+    const float *outf = out.data() + 200, *expectedf = expected.data() + 200;
+    COMPARE_N(outf, expectedf, 600);
 }
 
 BOOST_AUTO_TEST_CASE(overrun_interleaved)
@@ -99,7 +129,7 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                     if (outcount < 1) outcount = 1;
                     int outbuflen = outcount + 10;
                     float *outbuf = new float[outbuflen * channels];
-                    for (int i = outcount; i < outbuflen; ++i) {
+                    for (int i = 0; i < outbuflen; ++i) {
                         for (int c = 0; c < channels; ++c) {
                             outbuf[i*channels+c] = guard_value;
                         }
@@ -109,10 +139,12 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                          << ratio << ", outcount = " << outcount << ", final = false"
                          << endl;
 */                    
-                    r.resampleInterleaved
+                    int returned = r.resampleInterleaved
                         (outbuf, outcount, inbuf, length, ratio, false);
 
-                    for (int i = outcount; i < outbuflen; ++i) {
+                    BOOST_CHECK_LE(returned, outcount);
+                    
+                    for (int i = returned; i < outbuflen; ++i) {
                         for (int c = 0; c < channels; ++c) {
                             BOOST_CHECK_EQUAL(outbuf[i*channels+c], guard_value);
                             if (outbuf[i*channels+c] != guard_value) {
@@ -131,10 +163,12 @@ BOOST_AUTO_TEST_CASE(overrun_interleaved)
                          << ratio << ", outcount = " << outcount << ", final = true"
                          << endl;
 */
-                    r.resampleInterleaved
+                    returned = r.resampleInterleaved
                         (outbuf, outcount, inbuf, length, ratio, true);
 
-                    for (int i = outcount; i < outbuflen; ++i) {
+                    BOOST_CHECK_LE(returned, outcount);
+
+                    for (int i = returned; i < outbuflen; ++i) {
                         for (int c = 0; c < channels; ++c) {
                             BOOST_CHECK_EQUAL(outbuf[i*channels+c], guard_value);
                             if (outbuf[i*channels+c] != guard_value) {
