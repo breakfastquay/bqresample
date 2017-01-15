@@ -93,23 +93,19 @@ static void *speex_alloc (int count, int size)
     void *rv;
 #endif
 
-//	fprintf(stderr, "speex_alloc(%d,%d)\n", count, size);
-	if (count * size < ALLOC_MINIMUM) {
-//		fprintf(stderr, "upgrading count from %d to %d\n", count, ALLOC_MINIMUM / size);
+    if (count * size < ALLOC_MINIMUM) {
         count = ALLOC_MINIMUM / size;
     }
 
 #ifdef HAVE_IPP
-    if (size == sizeof(float) && size == 4) { // or sizeof(int32) or whatever, doesn't matter
+    if (size == sizeof(float) && size == 4) {
         rv = ippsMalloc_32f(count);
     } else if (size == sizeof(double) && size == 8) {
         rv = ippsMalloc_64f(count);
     } else {
         rv = ippsMalloc_8u(count * size);
     }
-//	fprintf(stderr, "allocated at %p; now setting %d bytes to zero\n", rv, count*size);
     memset(rv, count * size, 0);
-//	fprintf(stderr, "returning %p\n",rv);
     return rv;
 #else
     return calloc(count, size);
@@ -118,9 +114,8 @@ static void *speex_alloc (int count, int size)
 
 static void speex_free (void *ptr) 
 {
-//	fprintf(stderr,"speex_free(%p)\n", ptr);
 #ifdef HAVE_IPP
-  	ippsFree(ptr);
+    ippsFree(ptr);
 #else
     free(ptr);
 #endif
@@ -129,16 +124,12 @@ static void speex_free (void *ptr)
 static void *speex_realloc (void *ptr, int oldcount, int newcount, int size)
 {
 #ifdef HAVE_IPP
-	void *newptr;
+    void *newptr;
 #endif
 
-//	fprintf(stderr,"speex_realloc(%p,%d,%d,%d)\n", ptr, oldcount, newcount, size);
-
     if (newcount * size < ALLOC_MINIMUM) {
-//		fprintf(stderr,"returning %p\n",ptr);
         return ptr;
     }
-//    fprintf(stderr, "NOTE: speex_realloc: actual reallocation happening (newcount = %d, size = %d)\n", newcount, size);
 
 #ifdef HAVE_IPP
     newptr = speex_alloc(newcount, size);
@@ -148,9 +139,9 @@ static void *speex_realloc (void *ptr, int oldcount, int newcount, int size)
         memcpy(newptr, ptr, copy * size);
     }
     speex_free(ptr);
-//	fprintf(stderr,"returning %p\n", ptr);
     return newptr;
 #else
+    (void)oldcount;
     return realloc(ptr, newcount * size);
 #endif
 }
@@ -727,7 +718,7 @@ static void update_filter(SpeexResamplerState *st)
 
             int j;
 
-            for (j = 0; j < st->filt_len; j++) {
+            for (j = 0; j < (int)st->filt_len; j++) {
                 st->sinc_table[i*st->filt_len+j] = sinc
                     (st->cutoff,
                      ((j - (int)st->filt_len / 2 + 1) - ((float)i) / st->den_rate), 
@@ -849,7 +840,7 @@ static void update_filter(SpeexResamplerState *st)
                         st->mem[i*old_alloc_size+j];
                 }
 
-                for (j = 0; j < st->magic_samples[i]; j++) {
+                for (j = 0; j < (int)st->magic_samples[i]; j++) {
                     st->mem[i*st->mem_alloc_size+j] = 0;
                 }
 
@@ -863,13 +854,13 @@ static void update_filter(SpeexResamplerState *st)
 
                 /* Copy data going backward */
 
-                for (j = 0; j < olen - 1; j++) {
+                for (j = 0; j < (int)olen - 1; j++) {
                     st->mem[i*st->mem_alloc_size+(st->filt_len-2-j)] =
                         st->mem[i*st->mem_alloc_size+(olen-2-j)];
                 }
 
                 /* Then put zeros for lack of anything better */
-                for (; j < st->filt_len - 1; j++) {
+                for (; j < (int)st->filt_len - 1; j++) {
                     st->mem[i*st->mem_alloc_size+(st->filt_len-2-j)] = 0;
                 }
 
@@ -881,7 +872,7 @@ static void update_filter(SpeexResamplerState *st)
                 /* Put back some of the magic! */
                 st->magic_samples[i] = (olen - st->filt_len) / 2;
 
-                for (j = 0; j < st->filt_len - 1 + st->magic_samples[i]; j++) {
+                for (j = 0; j < (int)st->filt_len - 1 + (int)st->magic_samples[i]; j++) {
                     st->mem[i*st->mem_alloc_size+j] =
                         st->mem[i*st->mem_alloc_size+j+st->magic_samples[i]];
                 }
