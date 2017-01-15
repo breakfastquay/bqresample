@@ -97,8 +97,14 @@ public:
      * available in the output buffers. Generally you want outspace to
      * be at least ceil(incount * ratio).
      *
-     * Returns the number of frames written to the output buffers.
+     * Returns the number of frames written to the output
+     * buffers. This may be smaller than outspace even where the ratio
+     * suggests otherwise, particularly at the start of processing
+     * where there may be a filter tail to allow for.
      */
+#ifdef __GNUC__
+    __attribute__((warn_unused_result))
+#endif
     int resample(float *const BQ_R__ *const BQ_R__ out,
                  int outspace,
                  const float *const BQ_R__ *const BQ_R__ in,
@@ -114,8 +120,14 @@ public:
      * outspace * getChannelCount() samples). Generally you want
      * outspace to be at least ceil(incount * ratio).
      *
-     * Returns the number of frames written to the output buffer.
+     * Returns the number of frames written to the output buffer. This
+     * may be smaller than outspace even where the ratio suggests
+     * otherwise, particularly at the start of processing where there
+     * may be a filter tail to allow for.
      */
+#ifdef __GNUC__
+    __attribute__((warn_unused_result))
+#endif
     int resampleInterleaved(float *const BQ_R__ out,
                             int outspace,
                             const float *const BQ_R__ in,
