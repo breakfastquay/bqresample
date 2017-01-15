@@ -2,7 +2,7 @@
 bqresample
 ==========
 
-A small library wrapping various audio sample rate conversion
+A small C++ library wrapping various audio sample rate conversion
 libraries.
 
 Requires the bqvec library.
