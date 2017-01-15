@@ -12,6 +12,8 @@ addons:
       - libsamplerate0-dev
 
 before_install:
+  - if [[ "$TRAVIS_OS_NAME" = "osx" ]] ; then brew install libsamplerate ; fi
+  - if [[ "$TRAVIS_OS_NAME" = "linux" ]] ; then apt-cache showpkg libsamplerate0-dev ; fi
   - ( cd .. ; git clone https://github.com/breakfastquay/bqvec )
 
 script:
