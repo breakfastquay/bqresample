@@ -9,6 +9,10 @@ addons:
     packages:
       - libboost-test-dev
       - valgrind
+      - libsamplerate0-dev
+
+before_install:
+  - ( cd .. ; git clone https://github.com/breakfastquay/bqvec )
 
 script:
   - ./build/run-platform-tests.sh "$TRAVIS_OS_NAME"
