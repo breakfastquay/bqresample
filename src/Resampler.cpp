@@ -41,8 +41,8 @@
 #include <iostream>
 #include <algorithm>
 
-#include "bqvec/Allocators.h"
-#include "bqvec/VectorOps.h"
+#include <bqvec/Allocators.h>
+#include <bqvec/VectorOps.h>
 
 #ifdef HAVE_IPP
 #include <ippversion.h>
@@ -995,6 +995,9 @@ protected:
     int m_debugLevel;
 
     void setRatio(double);
+    void doResample(const float *in, unsigned int &incount,
+                    float *out, unsigned int &outcount,
+                    double ratio, bool final);
 };
 
 D_Speex::D_Speex(Resampler::Quality quality,
@@ -1016,8 +1019,7 @@ D_Speex::D_Speex(Resampler::Quality quality,
 
     if (m_debugLevel > 0) {
         cerr << "Resampler::Resampler: using Speex implementation with q = "
-                  << q 
-                  << endl;
+             << q << endl;
     }
 
     int rrate = int(round(m_initialSampleRate));
@@ -1032,7 +1034,7 @@ D_Speex::D_Speex(Resampler::Quality quality,
 
     if (err) {
         cerr << "Resampler::Resampler: failed to create Speex resampler" 
-                  << endl;
+             << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -1074,8 +1076,8 @@ D_Speex::setRatio(double ratio)
     
     if (m_debugLevel > 1) {
         cerr << "D_Speex: Desired ratio " << ratio << ", requesting ratio "
-                  << num << "/" << denom << " = " << float(double(num)/double(denom))
-                  << endl;
+             << num << "/" << denom << " = " << float(double(num)/double(denom))
+             << endl;
     }
 
     int fromRate = int(round(m_initialSampleRate));
@@ -1086,7 +1088,7 @@ D_Speex::setRatio(double ratio)
 
     if (err) {
         cerr << "Resampler::Resampler: failed to set rate on Speex resampler" 
-                  << endl;
+             << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -1096,8 +1098,8 @@ D_Speex::setRatio(double ratio)
     
     if (m_debugLevel > 1) {
         cerr << "D_Speex: Desired ratio " << ratio << ", got ratio "
-                  << num << "/" << denom << " = " << float(double(num)/double(denom))
-                  << endl;
+             << num << "/" << denom << " = " << float(double(num)/double(denom))
+             << endl;
     }
     
     m_lastratio = ratio;
@@ -1114,7 +1116,7 @@ D_Speex::resample(float *const BQ_R__ *const BQ_R__ out,
                   const float *const BQ_R__ *const BQ_R__ in,
                   int incount,
                   double ratio,
-                  bool)
+                  bool final)
 {
     if (ratio != m_lastratio) {
         setRatio(ratio);
@@ -1142,20 +1144,7 @@ D_Speex::resample(float *const BQ_R__ *const BQ_R__ out,
         data_out = m_iout;
     }
 
-    int err = speex_resampler_process_interleaved_float(m_resampler,
-                                                        data_in,
-                                                        &uincount,
-                                                        data_out,
-                                                        &uoutcount);
-
-    if (err) {
-        cerr << "Resampler::Resampler: Speex resampler returned error "
-                  << err
-                  << endl;
-#ifndef NO_EXCEPTIONS
-        throw Resampler::ImplementationError;
-#endif
-    }
+    doResample(data_in, uincount, data_out, uoutcount, ratio, final);
 
     if (m_channels > 1) {
         v_deinterleave(out, m_iout, m_channels, uoutcount);
@@ -1170,7 +1159,7 @@ D_Speex::resampleInterleaved(float *const BQ_R__ out,
                              const float *const BQ_R__ in,
                              int incount,
                              double ratio,
-                             bool)
+                             bool final)
 {
     if (ratio != m_lastratio) {
         setRatio(ratio);
@@ -1182,22 +1171,55 @@ D_Speex::resampleInterleaved(float *const BQ_R__ out,
     float *data_in = const_cast<float *>(in);
     float *data_out = out;
 
-    int err = speex_resampler_process_interleaved_float(m_resampler,
-                                                        data_in,
-                                                        &uincount,
-                                                        data_out,
-                                                        &uoutcount);
+    doResample(data_in, uincount, data_out, uoutcount, ratio, final);
+    
+    return uoutcount;
+}
 
+void
+D_Speex::doResample(const float *data_in, unsigned int &uincount,
+                    float *data_out, unsigned int &uoutcount,
+                    double ratio, bool final)
+{
+    int initial_outcount = int(uoutcount);
+    
+    int err = speex_resampler_process_interleaved_float
+        (m_resampler,
+         data_in, &uincount,
+         data_out, &uoutcount);
+    
     if (err) {
         cerr << "Resampler::Resampler: Speex resampler returned error "
-                  << err
-                  << endl;
+             << err << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
     }
 
-    return uoutcount;
+    if (final) {
+        int actual = int(uoutcount);
+        int expected = std::min(initial_outcount, int(round(uincount * ratio)));
+        if (actual < expected) {
+            unsigned int final_out = expected - actual;
+            unsigned int final_in = (unsigned int)(round(final_out / ratio));
+            if (final_in > 0) {
+                float *pad = allocate_and_zero<float>(final_in * m_channels);
+                err = speex_resampler_process_interleaved_float
+                    (m_resampler,
+                     pad, &final_in,
+                     data_out + actual * m_channels, &final_out);
+                deallocate(pad);
+                uoutcount += final_out;
+                if (err) {
+                    cerr << "Resampler::Resampler: Speex resampler returned error "
+                         << err << endl;
+#ifndef NO_EXCEPTIONS
+                    throw Resampler::ImplementationError;
+#endif
+                }
+            }
+        }
+    }
 }
 
 void
