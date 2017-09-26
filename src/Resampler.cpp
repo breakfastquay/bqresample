@@ -1225,6 +1225,8 @@ D_Speex::doResample(const float *data_in, unsigned int &uincount,
 void
 D_Speex::reset()
 {
+    m_lastratio = -1.0; // force reset of ratio
+    m_initial = true;
     speex_resampler_reset_mem(m_resampler);
 }
 
