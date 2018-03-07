@@ -617,7 +617,6 @@ protected:
     SRC_STATE *m_src;
     float *m_iin;
     float *m_iout;
-    double m_lastRatio;
     int m_channels;
     int m_iinsize;
     int m_ioutsize;
@@ -629,7 +628,6 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
     m_src(0),
     m_iin(0),
     m_iout(0),
-    m_lastRatio(1.0),
     m_channels(channels),
     m_iinsize(0),
     m_ioutsize(0),
@@ -717,8 +715,6 @@ D_SRC::resample(float *const BQ_R__ *const BQ_R__ out,
         v_deinterleave(out, m_iout, m_channels, (int)data.output_frames_gen);
     }
 
-    m_lastRatio = ratio;
-
     return (int)data.output_frames_gen;
 }
 
@@ -749,8 +745,6 @@ D_SRC::resampleInterleaved(float *const BQ_R__ out,
         throw Resampler::ImplementationError;
 #endif
     }
-
-    m_lastRatio = ratio;
 
     return (int)data.output_frames_gen;
 }
@@ -806,7 +800,6 @@ D_Resample::D_Resample(Resampler::Quality quality,
     m_src(0),
     m_iin(0),
     m_iout(0),
-    m_lastRatio(1.f),
     m_channels(channels),
     m_iinsize(0),
     m_ioutsize(0),
@@ -905,8 +898,6 @@ D_Resample::resample(float *const BQ_R__ *const BQ_R__ out,
         v_deinterleave(out, m_iout, m_channels, output_frames_gen);
     }
 
-    m_lastRatio = ratio;
-
     return output_frames_gen;
 }
 
@@ -942,8 +933,6 @@ D_Resample::resampleInterleaved(float *const BQ_R__ out,
                   << endl;
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
-
-    m_lastRatio = ratio;
 
     return output_frames_gen;
 }
@@ -1010,7 +999,7 @@ D_Speex::D_Speex(Resampler::Quality quality,
     m_channels(channels),
     m_iinsize(0),
     m_ioutsize(0),
-    m_lastratio(1),
+    m_lastratio(-1.0),
     m_initial(true),
     m_debugLevel(debugLevel)
 {
