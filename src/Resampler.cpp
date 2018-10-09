@@ -677,45 +677,26 @@ D_SRC::resample(float *const BQ_R__ *const BQ_R__ out,
                 double ratio,
                 bool final)
 {
-    SRC_DATA data;
-
     if (m_channels == 1) {
-        data.data_in = const_cast<float *>(*in); //!!!???
-        data.data_out = *out;
-    } else {
-        if (incount * m_channels > m_iinsize) {
-            m_iin = reallocate<float>(m_iin, m_iinsize, incount * m_channels);
-            m_iinsize = incount * m_channels;
-        }
-        if (outcount * m_channels > m_ioutsize) {
-            m_iout = reallocate<float>(m_iout, m_ioutsize, outcount * m_channels);
-            m_ioutsize = outcount * m_channels;
-        }
-        v_interleave(m_iin, in, m_channels, incount);
-        data.data_in = m_iin;
-        data.data_out = m_iout;
+        return resampleInterleaved(*out, outcount, *in, incount, ratio, final);
     }
 
-    data.input_frames = incount;
-    data.output_frames = outcount;
-    data.src_ratio = ratio;
-    data.end_of_input = (final ? 1 : 0);
-
-    int err = src_process(m_src, &data);
-
-    if (err) {
-        cerr << "Resampler::process: libsamplerate error: "
-                  << src_strerror(err) << endl;
-#ifndef NO_EXCEPTIONS
-        throw Resampler::ImplementationError;
-#endif
+    if (incount * m_channels > m_iinsize) {
+        m_iin = reallocate<float>(m_iin, m_iinsize, incount * m_channels);
+        m_iinsize = incount * m_channels;
     }
-
-    if (m_channels > 1) {
-        v_deinterleave(out, m_iout, m_channels, (int)data.output_frames_gen);
+    if (outcount * m_channels > m_ioutsize) {
+        m_iout = reallocate<float>(m_iout, m_ioutsize, outcount * m_channels);
+        m_ioutsize = outcount * m_channels;
     }
+    
+    v_interleave(m_iin, in, m_channels, incount);
 
-    return (int)data.output_frames_gen;
+    int n = resampleInterleaved(m_iout, outcount, m_iin, incount, ratio, final);
+
+    v_deinterleave(out, m_iout, m_channels, n);
+
+    return n;
 }
 
 int
@@ -740,7 +721,7 @@ D_SRC::resampleInterleaved(float *const BQ_R__ out,
 
     if (err) {
         cerr << "Resampler::process: libsamplerate error: "
-                  << src_strerror(err) << endl;
+             << src_strerror(err) << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -788,7 +769,7 @@ protected:
     void *m_src;
     float *m_iin;
     float *m_iout;
-    float m_lastRatio;
+    double m_lastRatio;
     int m_channels;
     int m_iinsize;
     int m_ioutsize;
@@ -979,7 +960,7 @@ protected:
     int m_channels;
     int m_iinsize;
     int m_ioutsize;
-    float m_lastratio;
+    double m_lastratio;
     bool m_initial;
     int m_debugLevel;
 
