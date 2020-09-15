@@ -18,8 +18,12 @@ C++ standard required: C++98 (does not use C++11 or newer features)
    then make test. Or else use one of the pre-edited Makefiles in the
    build directory.
 
+ * Depends on: [bqvec](https://hg.sr.ht/~breakfastquay/bqvec)
+
+ * See also: [bqfft](https://hg.sr.ht/~breakfastquay/bqfft) [bqaudioio](https://hg.sr.ht/~breakfastquay/bqaudioio) [bqthingfactory](https://hg.sr.ht/~breakfastquay/bqthingfactory) [bqaudiostream](https://hg.sr.ht/~breakfastquay/bqaudiostream)
+
 [![Build Status](https://travis-ci.org/breakfastquay/bqresample.svg?branch=master)](https://travis-ci.org/breakfastquay/bqresample)
 
-Copyright 2007-2017 Particular Programs Ltd.
+Copyright 2007-2020 Particular Programs Ltd.
 Uses Speex code, see speex/COPYING for copyright and licence information.
 
