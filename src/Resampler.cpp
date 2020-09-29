@@ -640,8 +640,8 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
 
     int err = 0;
     m_src = src_new(quality == Resampler::Best ? SRC_SINC_BEST_QUALITY :
-                    quality == Resampler::Fastest ? SRC_LINEAR :
-                    SRC_SINC_FASTEST,
+                    quality == Resampler::Fastest ? SRC_SINC_FASTEST :
+                    SRC_SINC_MEDIUM_QUALITY,
                     channels, &err);
 
     if (err) {
