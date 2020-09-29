@@ -1207,6 +1207,10 @@ D_Speex::reset()
 Resampler::Resampler(Resampler::Parameters params, int channels)
 {
     m_method = -1;
+
+    if (params.initialSampleRate == 0) {
+        params.initialSampleRate = 44100;
+    }
     
     switch (params.quality) {
 
