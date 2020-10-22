@@ -47,9 +47,7 @@
 #ifdef HAVE_IPP
 #include <ippversion.h>
 #if (IPP_VERSION_MAJOR < 7)
-#include <ipps.h>
-#include <ippsr.h>
-#include <ippac.h>
+#error Unsupported IPP version, must be >= 7
 #else
 #include <ipps.h>
 #endif
@@ -160,7 +158,8 @@ protected:
     void setBufSize(int);
 };
 
-D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
+D_IPP::D_IPP(Resampler::Quality /* quality */,
+             int channels, double initialSampleRate,
              int maxBufferSize, int debugLevel) :
     m_state(0),
     m_initialSampleRate(initialSampleRate),
@@ -168,36 +167,12 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        cerr << "Resampler::Resampler: using IPP implementation"
-                  << endl;
+        cerr << "Resampler::Resampler: using IPP implementation" << endl;
     }
 
-    int nStep = 16;
+    m_window = 32;
+    int nStep = 64;
     IppHintAlgorithm hint = ippAlgHintFast;
-
-    //!!! todo: make use of initialSampleRate to calculate parameters
-    
-    switch (quality) {
-
-    case Resampler::Best:
-        m_window = 64;
-        nStep = 80;
-        hint = ippAlgHintAccurate;
-        break;
-
-    case Resampler::FastestTolerable:
-        nStep = 16;
-        m_window = 16;
-        hint = ippAlgHintFast;
-        break;
-
-    case Resampler::Fastest:
-        m_window = 24;
-        nStep = 64;
-        hint = ippAlgHintFast;
-        break;
-    }
-
     m_factor = 8; // initial upper bound on m_ratio, may be amended later
 
     // This is largely based on the IPP docs and examples. Adapted
@@ -233,7 +208,6 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
         cerr << "bufsize = " << m_bufsize << ", window = " << m_window << ", nStep = " << nStep << ", history = " << m_history << endl;
     }
 
-#if (IPP_VERSION_MAJOR >= 7)
     int specSize = 0;
     ippsResamplePolyphaseGetSize_32f(float(m_window),
                                      nStep,
@@ -246,17 +220,8 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
         abort();
 #endif
     }
-#endif
 
     for (int c = 0; c < m_channels; ++c) {
-#if (IPP_VERSION_MAJOR < 7)
-        ippsResamplePolyphaseInitAlloc_32f(&m_state[c],
-                                           float(m_window),
-                                           nStep,
-                                           0.95f,
-                                           9.0f,
-                                           hint);
-#else
         m_state[c] = (IppsResamplingPolyphase_32f *)ippsMalloc_8u(specSize);
         ippsResamplePolyphaseInit_32f(float(m_window),
                                       nStep,
@@ -264,7 +229,6 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
                                       9.0f,
                                       m_state[c],
                                       hint);
-#endif
         
         m_lastread[c] = m_history;
         m_time[c] = m_history;
@@ -277,15 +241,9 @@ D_IPP::D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
 
 D_IPP::~D_IPP()
 {
-#if (IPP_VERSION_MAJOR < 7)
-    for (int c = 0; c < m_channels; ++c) {
-        ippsResamplePolyphaseFree_32f(m_state[c]);
-    }
-#else
     for (int c = 0; c < m_channels; ++c) {
         ippsFree(m_state[c]);
     }
-#endif
 
     deallocate_channels(m_inbuf, m_channels);
     deallocate_channels(m_outbuf, m_channels);
@@ -458,16 +416,6 @@ D_IPP::doResample(int outspace, double ratio, bool final)
             n = limit;
         }
         
-#if (IPP_VERSION_MAJOR < 7)
-        ippsResamplePolyphase_32f(m_state[c],
-                                  m_inbuf[c],
-                                  n,
-                                  m_outbuf[c],
-                                  ratio,
-                                  1.0f,
-                                  &m_time[c],
-                                  &outcount);
-#else
         ippsResamplePolyphase_32f(m_inbuf[c],
                                   n,
                                   m_outbuf[c],
@@ -476,24 +424,39 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                   &m_time[c],
                                   &outcount,
                                   m_state[c]);
-#endif
 
-        int t = int(round(m_time[c]));
+        int t = int(floor(m_time[c]));
+        
+        int moveFrom = t - m_history;
         
         if (c == 0 && m_debugLevel > 2) {
             cerr << "converted " << n << " samples to " << outcount
-                 << ", time advanced to " << t << endl;
-            cerr << "will move " << m_lastread[c] + m_history - t
-                 << " unconverted samples back from index " << t - m_history
+                 << " (nb outbufsz = " << m_outbufsz
+                 << "), time advanced to " << m_time[c] << endl;
+            cerr << "rounding time to " << t << ", lastread = "
+                 << m_lastread[c] << ", history = " << m_history << endl;
+            cerr << "will move " << m_lastread[c] - moveFrom
+                 << " unconverted samples back from index " << moveFrom
                  << " to 0" << endl;
         }
 
-        v_move(m_inbuf[c],
-               m_inbuf[c] + t - m_history,
-               m_lastread[c] + m_history - t);
+        if (moveFrom >= m_lastread[c]) {
 
-        m_lastread[c] -= t - m_history;
-        m_time[c] -= t - m_history;
+            moveFrom = m_lastread[c];
+
+            if (c == 0 && m_debugLevel > 2) {
+                cerr << "number of samples to move is <= 0, "
+                     << "not actually moving any" << endl;
+            }
+        } else {
+        
+            v_move(m_inbuf[c],
+                   m_inbuf[c] + moveFrom,
+                   m_lastread[c] - moveFrom);
+        }
+
+        m_lastread[c] -= moveFrom;
+        m_time[c] -= moveFrom;
 
         if (c == 0 && m_debugLevel > 2) {
             cerr << "lastread reduced to " << m_lastread[c]
@@ -539,16 +502,6 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                 nAdditional = limit - n;
             }
             
-#if (IPP_VERSION_MAJOR < 7)
-            ippsResamplePolyphase_32f(m_state[c],
-                                      m_inbuf[c],
-                                      nAdditional,
-                                      m_outbuf[c],
-                                      ratio,
-                                      1.0f,
-                                      &m_time[c],
-                                      &additionalcount);
-#else
             ippsResamplePolyphase_32f(m_inbuf[c],
                                       nAdditional,
                                       m_outbuf[c],
@@ -557,7 +510,6 @@ D_IPP::doResample(int outspace, double ratio, bool final)
                                       &m_time[c],
                                       &additionalcount,
                                       m_state[c]);
-#endif
         
             if (c == 0 && m_debugLevel > 2) {
                 cerr << "converted " << n << " samples to " << additionalcount
@@ -620,6 +572,7 @@ protected:
     int m_channels;
     int m_iinsize;
     int m_ioutsize;
+    double m_prevRatio;
     int m_debugLevel;
 };
 
@@ -631,6 +584,7 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
     m_channels(channels),
     m_iinsize(0),
     m_ioutsize(0),
+    m_prevRatio(1.0),
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
@@ -708,6 +662,48 @@ D_SRC::resampleInterleaved(float *const BQ_R__ out,
                            bool final)
 {
     SRC_DATA data;
+
+    // libsamplerate smooths the filter change over the duration of
+    // the processing block to avoid artifacts due to sudden changes,
+    // and it uses outcount to determine how long to smooth the change
+    // over. This is a good thing, but it does mean (a) we should
+    // never pass outcount significantly longer than the actual
+    // expected output, and (b) when the ratio has just changed, we
+    // should aim to supply a shortish block next
+    
+    if (outcount > int(ceil(incount * ratio) + 5)) {
+        outcount = int(ceil(incount * ratio) + 5);
+    }
+
+    if (ratio != m_prevRatio) {
+
+        // If we are processing a block of appreciable length, turn it
+        // into two recursive calls, one for the short smoothing block
+        // and the other for the rest. Update m_prevRatio before doing
+        // this so that the calls don't themselves recurse!
+        m_prevRatio = ratio;
+
+        int shortBlock = 200;
+        if (outcount > shortBlock * 2) {
+            int shortIn = int(floor(shortBlock / ratio));
+            if (shortIn >= 10) {
+                int shortOut =
+                    resampleInterleaved(out, shortBlock,
+                                        in, shortIn,
+                                        ratio, false);
+                int remainingOut = 0;
+                if (shortOut < outcount) {
+                    remainingOut =
+                        resampleInterleaved(out + shortOut * m_channels,
+                                            outcount - shortOut,
+                                            in + shortIn * m_channels,
+                                            incount - shortIn,
+                                            ratio, final);
+                }
+                return shortOut + remainingOut;
+            }
+        }
+    }
 
     data.data_in = const_cast<float *>(in);
     data.data_out = out;

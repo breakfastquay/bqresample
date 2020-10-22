@@ -4,9 +4,9 @@
 #
 # Available options are
 #
+#  -DHAVE_LIBSAMPLERATE  The libsamplerate library is available (recommended)
 #  -DHAVE_IPP            Intel's Integrated Performance Primitives are available
 #  -DHAVE_LIBRESAMPLE    The libresample library is available
-#  -DHAVE_LIBSAMPLERATE  The libsamplerate library is available
 #  -DUSE_SPEEX           Compile the built-in Speex-derived resampler
 #
 # You may define more than one of these. If you define USE_SPEEX, the
@@ -14,7 +14,7 @@
 # the best available option for a given quality setting. If no flags
 # are supplied, the code will refuse to compile.
 
-RESAMPLE_DEFINES	:= -DUSE_SPEEX
+RESAMPLE_DEFINES	:= -DHAVE_LIBSAMPLERATE
 
 
 # Add to VECTOR_DEFINES and ALLOCATOR_DEFINES any options desired for

@@ -65,7 +65,9 @@ public:
         /** 
          * Bound on the maximum incount size that may be passed to the
          * resample function before the resampler needs to reallocate
-         * its internal buffers.
+         * its internal buffers. Default is zero, so that buffer
+         * allocation will happen on the first call and any subsequent
+         * call with a greater incount.
          */
         int maxBufferSize;
 
