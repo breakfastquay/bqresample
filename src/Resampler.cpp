@@ -589,9 +589,17 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
 {
     if (m_debugLevel > 0) {
         cerr << "Resampler::Resampler: using libsamplerate implementation"
-                  << endl;
+             << endl;
     }
 
+    if (channels < 1) {
+        cerr << "Resampler::Resampler: unable to create resampler: invalid channel count " << channels << " supplied" << endl;
+#ifdef NO_EXCEPTIONS
+        throw Resampler::ImplementationError;
+#endif
+        return;
+    }
+    
     int err = 0;
     m_src = src_new(quality == Resampler::Best ? SRC_SINC_BEST_QUALITY :
                     quality == Resampler::Fastest ? SRC_SINC_FASTEST :
@@ -600,10 +608,17 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
 
     if (err) {
         cerr << "Resampler::Resampler: failed to create libsamplerate resampler: " 
-                  << src_strerror(err) << endl;
+             << src_strerror(err) << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
+        return;
+    } else if (!m_src) {
+        cerr << "Resampler::Resampler: failed to create libsamplerate resampler, but no error reported?" << endl;
+#ifndef NO_EXCEPTIONS
+        throw Resampler::ImplementationError;
+#endif
+        return;
     }
 
     if (maxBufferSize > 0 && m_channels > 1) {
