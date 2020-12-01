@@ -754,6 +754,7 @@ void
 D_SRC::reset()
 {
     src_reset(m_src);
+    m_ratioUnset = true;
 }
 
 #endif /* HAVE_LIBSAMPLERATE */
