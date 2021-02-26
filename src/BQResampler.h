@@ -150,7 +150,7 @@ private:
         p.effective = double(p.numerator) / double(p.denominator);
         p.peak_to_zero = max(p.denominator, p.numerator);
         if (ratio < 1.0) {
-//            p.peak_to_zero /= std::max (0.965, ratio);
+            p.peak_to_zero /= std::max (0.965, ratio);
         }
         p.scale = double(p.numerator) / double(p.peak_to_zero);
         return p;
@@ -217,10 +217,11 @@ private:
         
         if (m_dynamism == RatioMostlyFixed) {
             //!!! can we share the prototype among instances even?
+            //!!! harmonise with reconstruct_one
             vector<double> filter(s.filter_length, 0.0);
             for (int i = 0; i < s.filter_length; ++i) {
-                double ix = double(proto_size) *
-                    (double(i) / double(s.filter_length));
+                double ix = double(proto_size + 1) *
+                    (double(i + 1) / double(s.filter_length + 1));
                 int iix = floor(ix);
                 double remainder = ix - iix;
                 double value = m_kaiser_prototype[iix] * (1.0 - remainder);
@@ -288,8 +289,8 @@ private:
             for (int i = 0; i < phase_length; ++i) {
                 double sample = s.buffer[s.left + i];
                 int filter_index = i * s.parameters.numerator + s.current_phase;
-                double proto_index =
-                    proto_size * (double(filter_index) / double(s.filter_length));
+                double proto_index = double(proto_size + 1) *
+                    (double(filter_index + 1) / double(s.filter_length + 1));
                 int iix = floor(proto_index);
                 double remainder = proto_index - iix;
                 double filter_value = m_kaiser_prototype[iix] * (1.0 - remainder);
