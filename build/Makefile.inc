@@ -42,10 +42,10 @@ distclean:	clean
 	rm -f $(LIBRARY) test-resampler
 
 depend:
-	makedepend -Y -fbuild/Makefile.inc $(SOURCES) $(HEADERS) $(TEST_SOURCES)
+	makedepend $(RESAMPLE_DEFINES) -Y -fbuild/Makefile.inc $(SOURCES) $(HEADERS) $(TEST_SOURCES)
 
 
 # DO NOT DELETE
 
-src/Resampler.o: bqresample/Resampler.h
+src/Resampler.o: bqresample/Resampler.h src/BQResampler.h
 test/TestResampler.o: bqresample/Resampler.h

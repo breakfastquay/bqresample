@@ -44,6 +44,7 @@ class Resampler
 {
 public:
     enum Quality { Best, FastestTolerable, Fastest };
+    enum Dynamism { RatioOftenChanging, RatioMostlyFixed };
     enum Exception { ImplementationError };
 
     struct Parameters {
@@ -53,6 +54,16 @@ public:
          */
         Quality quality;
 
+        /**
+         * Performance hint indicating whether the ratio is expected
+         * to change regularly or not. If not, more work may happen on
+         * ratio changes to reduce work when ratio is unchanged.
+         *!!! doc: more likely to avoid allocations?
+         *!!! doc: do we actually change output on ratio changes if
+         * we're expecting them? (e.g. smoothing)
+         */
+        Dynamism dynamism; 
+        
         /** 
          * Rate of expected input prior to resampling: may be used to
          * determine the filter bandwidth for the quality setting. If
@@ -79,6 +90,7 @@ public:
 
         Parameters() :
             quality(FastestTolerable),
+            dynamism(RatioMostlyFixed),
             initialSampleRate(44100),
             maxBufferSize(0),
             debugLevel(0) { }

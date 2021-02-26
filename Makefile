@@ -14,7 +14,7 @@
 # the best available option for a given quality setting. If no flags
 # are supplied, the code will refuse to compile.
 
-RESAMPLE_DEFINES	:= -DHAVE_LIBSAMPLERATE
+RESAMPLE_DEFINES	:= -DUSE_BQRESAMPLER
 
 
 # Add to VECTOR_DEFINES and ALLOCATOR_DEFINES any options desired for

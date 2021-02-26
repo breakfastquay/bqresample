@@ -53,6 +53,11 @@ BOOST_AUTO_TEST_CASE(interpolated_sine_1ch_interleaved)
     BOOST_CHECK_NE(out[returned-1], guard_value);
     BOOST_CHECK_EQUAL(out[returned], guard_value);
 
+    for (int i = 0; i < 2000; ++i) {
+        cout << "X" << out[i] << endl;
+    }
+    cout << endl;
+    
     // and they should match the expected data, at least in the middle
     const float *outf = out.data() + 200, *expectedf = expected.data() + 200;
     COMPARE_N(outf, expectedf, 600);

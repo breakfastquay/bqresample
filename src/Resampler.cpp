@@ -69,11 +69,17 @@
 #include "../speex/speex_resampler.h"
 #endif
 
+#ifdef USE_BQRESAMPLER
+#include "BQResampler.h"
+#endif
+
 #ifndef HAVE_IPP
 #ifndef HAVE_LIBSAMPLERATE
 #ifndef HAVE_LIBRESAMPLE
 #ifndef USE_SPEEX
+#ifndef USE_BQRESAMPLER
 #error No resampler implementation selected!
+#endif
 #endif
 #endif
 #endif
@@ -946,6 +952,151 @@ D_Resample::reset()
 
 #endif /* HAVE_LIBRESAMPLE */
 
+#ifdef USE_BQRESAMPLER
+    
+class D_BQResampler : public Resampler::Impl
+{
+public:
+    //!!! + Dynamism
+    D_BQResampler(Resampler::Quality quality, int channels,
+                  double initialSampleRate,
+                  int maxBufferSize, int debugLevel);
+    ~D_BQResampler();
+
+    int resample(float *const BQ_R__ *const BQ_R__ out,
+                 int outcount,
+                 const float *const BQ_R__ *const BQ_R__ in,
+                 int incount,
+                 double ratio,
+                 bool final);
+
+    int resampleInterleaved(float *const BQ_R__ out,
+                            int outcount,
+                            const float *const BQ_R__ in,
+                            int incount,
+                            double ratio,
+                            bool final = false);
+
+    int getChannelCount() const { return m_channels; }
+
+    void reset();
+
+protected:
+    BQResampler **m_resamplers;
+    float **m_din;
+    float **m_dout;
+    int m_channels;
+    int m_dinsize;
+    int m_doutsize;
+    int m_debugLevel;
+};
+
+D_BQResampler::D_BQResampler(Resampler::Quality quality,
+                             int channels, double initialSampleRate,
+                             int maxBufferSize, int debugLevel) :
+    m_resamplers(0),
+    m_din(0),
+    m_dout(0),
+    m_channels(channels),
+    m_dinsize(0),
+    m_doutsize(0),
+    m_debugLevel(debugLevel)
+{
+    (void)quality; //!!!
+    
+    if (m_debugLevel > 0) {
+        cerr << "Resampler::Resampler: using BQResampler implementation" << endl;
+    }
+
+    m_resamplers = new BQResampler *[m_channels];
+    for (int c = 0; c < m_channels; ++c) {
+        m_resamplers[c] = new BQResampler(BQResampler::RatioOftenChanging,
+                                          initialSampleRate);
+    }
+    
+    if (maxBufferSize > 0 && m_channels > 1) {
+        m_dinsize = maxBufferSize;
+        m_doutsize = maxBufferSize;
+        m_din = allocate_channels<float>(m_channels, m_dinsize);
+        m_dout = allocate_channels<float>(m_channels, m_doutsize);
+    }
+}
+
+D_BQResampler::~D_BQResampler()
+{
+    deallocate_channels(m_din, m_channels);
+    deallocate_channels(m_dout, m_channels);
+    for (int c = 0; c < m_channels; ++c) {
+        delete m_resamplers[c];
+    }
+    delete[] m_resamplers;
+}
+
+int
+D_BQResampler::resample(float *const BQ_R__ *const BQ_R__ out,
+                        int outcount,
+                        const float *const BQ_R__ *const BQ_R__ in,
+                        int incount,
+                        double ratio,
+                        bool final)
+{
+    int rv = 0;
+    
+    for (int c = 0; c < m_channels; ++c) {
+        rv = m_resamplers[c]->resample
+            (out[c], outcount, in[c], incount, ratio, final);
+    }
+
+    return rv;
+}
+
+int
+D_BQResampler::resampleInterleaved(float *const BQ_R__ out,
+                                   int outcount,
+                                   const float *const BQ_R__ in,
+                                   int incount,
+                                   double ratio,
+                                   bool final)
+{
+    if (m_channels == 1) {
+        return resample(&out, outcount, &in, incount, ratio, final);
+    }
+    
+    if (incount > m_dinsize) {
+        m_din = reallocate_channels(m_din,
+                                    m_channels, m_dinsize,
+                                    m_channels, incount * 2);
+        m_dinsize = incount * 2;
+    }
+    if (outcount > m_doutsize) {
+        m_dout = reallocate_channels(m_dout,
+                                     m_channels, m_doutsize,
+                                     m_channels, outcount * 2);
+        m_doutsize = outcount * 2;
+    }
+
+    v_deinterleave(m_din, in, m_channels, incount);
+    
+    int rv = 0;
+    
+    for (int c = 0; c < m_channels; ++c) {
+        rv = m_resamplers[c]->resample
+            (m_dout[c], outcount, m_din[c], incount, ratio, final);
+    }
+
+    v_interleave(out, m_dout, m_channels, rv);
+
+    return rv;
+}
+
+void
+D_BQResampler::reset()
+{
+    //!!! Not yet implemented in BQResampler
+}
+
+#endif /* USE_BQRESAMPLER */
+
 #ifdef USE_SPEEX
     
 class D_Speex : public Resampler::Impl
@@ -1245,6 +1396,9 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
 #ifdef HAVE_LIBRESAMPLE
         m_method = 3;
 #endif
+#ifdef USE_BQRESAMPLER
+        m_method = 4;
+#endif
 #ifdef HAVE_LIBSAMPLERATE
         m_method = 1;
 #endif
@@ -1260,6 +1414,9 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
 #ifdef USE_SPEEX
         m_method = 2;
 #endif
+#ifdef USE_BQRESAMPLER
+        m_method = 4;
+#endif
 #ifdef HAVE_LIBSAMPLERATE
         m_method = 1;
 #endif
@@ -1274,6 +1431,9 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
 #endif
 #ifdef USE_SPEEX
         m_method = 2;
+#endif
+#ifdef USE_BQRESAMPLER
+        m_method = 4;
 #endif
 #ifdef HAVE_LIBSAMPLERATE
         m_method = 1;
@@ -1326,6 +1486,18 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
     case 3:
 #ifdef HAVE_LIBRESAMPLE
         d = new Resamplers::D_Resample
+            (params.quality,
+             channels,
+             params.initialSampleRate, params.maxBufferSize, params.debugLevel);
+#else
+        cerr << "Resampler::Resampler: No implementation available!" << endl;
+        abort();
+#endif
+        break;
+
+    case 4:
+#ifdef USE_BQRESAMPLER
+        d = new Resamplers::D_BQResampler
             (params.quality,
              channels,
              params.initialSampleRate, params.maxBufferSize, params.debugLevel);
