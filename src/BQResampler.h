@@ -221,6 +221,7 @@ private:
 
         if (m_dynamism == RatioMostlyFixed) {
             //!!! can we share the prototype among instances even?
+            //!!! harmonise with reconstruct_one
             vector<double> filter(s.filter_length, 0.0);
             double ratio =
                 double(m_proto_length - 1) / double(s.filter_length - 1);
