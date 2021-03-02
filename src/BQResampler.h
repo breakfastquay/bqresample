@@ -21,15 +21,18 @@ public:
         m_dynamism(dynamism),
         m_initialised(false),
         m_initial_rate(rate),
-        m_p_multiple(122)
+        m_p_multiple(82)
     {
-        int proto_p = 1000;
-        int proto_len = proto_p * m_p_multiple + 1;
-        double snr = 150.0;
-        double bandwidth = 80.0; // Hz
-        double transition = (bandwidth * 2.0 * M_PI) / m_initial_rate;
-        m_kaiser_prototype = kaiser_for(snr, transition, proto_len, proto_len);
+        int proto_p = 160;
+        m_proto_length = proto_p * m_p_multiple + 1;
+        double snr = 130.0;
+//        double bandwidth = 80.0; // Hz
+//        double transition = (bandwidth * 2.0 * M_PI) / m_initial_rate;
+        double transition = 0.005;
+        m_kaiser_prototype = kaiser_for
+            (snr, transition, m_proto_length, m_proto_length);
         sinc_multiply(proto_p, m_kaiser_prototype);
+        m_kaiser_prototype.push_back(0.0); // interpolate without fear
     }
 
     int resample(float *const out,
@@ -133,6 +136,7 @@ private:
     double m_initial_rate;
     int m_p_multiple;
     vector<double> m_kaiser_prototype;
+    int m_proto_length;
     
     static int gcd(int a, int b) {
         int c = a % b;
@@ -150,7 +154,9 @@ private:
         p.effective = double(p.numerator) / double(p.denominator);
         p.peak_to_zero = max(p.denominator, p.numerator);
         if (ratio < 1.0) {
-//            p.peak_to_zero /= std::max (0.965, ratio);
+//            p.peak_to_zero /= std::max (0.99, ratio);
+        } else { 
+//            p.peak_to_zero /= 0.99;
         }
         p.scale = double(p.numerator) / double(p.peak_to_zero);
         return p;
@@ -213,20 +219,17 @@ private:
         s.parameters = parameters;
         s.filter_length = int(parameters.peak_to_zero * m_p_multiple + 1);
 
-        int proto_size = int(m_kaiser_prototype.size());
-        
         if (m_dynamism == RatioMostlyFixed) {
             //!!! can we share the prototype among instances even?
             vector<double> filter(s.filter_length, 0.0);
+            double ratio =
+                double(m_proto_length - 1) / double(s.filter_length - 1);
             for (int i = 0; i < s.filter_length; ++i) {
-                double ix = double(proto_size) *
-                    (double(i) / double(s.filter_length));
+                double ix = i * ratio;
                 int iix = floor(ix);
                 double remainder = ix - iix;
                 double value = m_kaiser_prototype[iix] * (1.0 - remainder);
-                if (iix + 1 < int(m_kaiser_prototype.size())) {
-                    value += m_kaiser_prototype[iix+1] * remainder;
-                }
+                value += m_kaiser_prototype[iix+1] * remainder;
                 filter[i] = value;
             }
             s.filter = filter;
@@ -278,31 +281,28 @@ private:
         const phase_rec &pr = s.phases[s.current_phase];
         int phase_length = pr.zip_length;
         double result = 0.0;
-        double proto_size = m_kaiser_prototype.size();
 
         if (m_dynamism == RatioMostlyFixed) {
             for (int i = 0; i < phase_length; ++i) {
                 result += pr.filter[i] * s.buffer[s.left + i];
             }
         } else {
+            double ratio =
+                double(m_proto_length - 1) / double(s.filter_length - 1);
             for (int i = 0; i < phase_length; ++i) {
                 double sample = s.buffer[s.left + i];
                 int filter_index = i * s.parameters.numerator + s.current_phase;
-                double proto_index =
-                    proto_size * (double(filter_index) / double(s.filter_length));
+                double proto_index = ratio * filter_index;
                 int iix = floor(proto_index);
                 double remainder = proto_index - iix;
                 double filter_value = m_kaiser_prototype[iix] * (1.0 - remainder);
-                //!!! can push back another zero to avoid this test if we store proto length separately?
-                if (iix + 1 < proto_size) {
-                    filter_value += m_kaiser_prototype[iix+1] * remainder;
-                }
+                filter_value += m_kaiser_prototype[iix+1] * remainder;
                 result += filter_value * sample;
             }
         }
         
         for (int i = pr.drop; i < int(s.buffer.size()); ++i) {
-            s.buffer[i - pr.drop] = s.buffer[i]; //!!!???
+            s.buffer[i - pr.drop] = s.buffer[i];
         }
         for (int i = 0; i < pr.drop; ++i) {
             s.buffer[s.buffer.size() - pr.drop + i] = 0.0;
