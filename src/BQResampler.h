@@ -67,6 +67,9 @@ public:
                 out[o++] = reconstruct_one(m_s);
             } else if (final && m_s.fill > m_s.centre) {
                 out[o++] = reconstruct_one(m_s);
+            } else if (final && m_s.fill == m_s.centre &&
+                       m_s.current_phase != m_s.initial_phase) {
+                out[o++] = reconstruct_one(m_s);
             } else {
                 break;
             }
@@ -116,6 +119,7 @@ private:
     };
     struct state {
         params parameters;
+        int initial_phase;
         int current_phase;
         int filter_length;
         vector<double> filter;
@@ -124,7 +128,7 @@ private:
         int left;
         int centre;
         int fill;
-        state() : current_phase(0), filter_length(0),
+        state() : initial_phase(0), current_phase(0), filter_length(0),
                   left(0), centre(0), fill(0) { }
     };
     state m_s;
@@ -143,45 +147,57 @@ private:
         if (c == 0) return b;
         else return gcd(b, c);
     }
-    
-    static params calc_rational(double ratio, int suggested_denom) {
+
+    params fill_params(double ratio, int num, int denom) const {
         params p;
-        int raw_num = round(ratio * suggested_denom);
-        int g = gcd (raw_num, suggested_denom);
+        int g = gcd (num, denom);
         p.ratio = ratio;
-        p.numerator = raw_num / g;
-        p.denominator = suggested_denom / g;
+        p.numerator = num / g;
+        p.denominator = denom / g;
         p.effective = double(p.numerator) / double(p.denominator);
         p.peak_to_zero = max(p.denominator, p.numerator);
+
         if (ratio < 1.0) {
 //            p.peak_to_zero /= std::max (0.99, ratio);
         } else { 
 //            p.peak_to_zero /= 0.99;
         }
+        
         p.scale = double(p.numerator) / double(p.peak_to_zero);
         return p;
     }
-
+    
     params pick_params(double ratio) const {
-        params best;
-        bool first = true;
-        static int candidates[] = { 44100, 96000 };
-        static int n_cand = int(sizeof(candidates)/sizeof(candidates[0]));
-        for (int i = 0; i < n_cand; ++i) {
-            int c = candidates[i];
-            params p = calc_rational(ratio, c);
-            if (first) {
-                best = p;
-                first = false;
-            } else if (fabs(p.effective - ratio) < fabs(best.effective - ratio)
-                       && p.peak_to_zero <= best.peak_to_zero) {
-                best = p;
-            } else if (p.peak_to_zero < best.peak_to_zero
-                       && fabs(p.effective - ratio) < 1e-5) {
-                best = p;
+        // Farey algorithm, see
+        // https://www.johndcook.com/blog/2010/10/20/best-rational-approximation/
+        int max_denom = 192000;
+        double a = 0.0, b = 1.0, c = 1.0, d = 0.0;
+        double pa = a, pb = b, pc = c, pd = d;
+        double eps = 1e-15;
+        while (b <= max_denom && d <= max_denom) {
+            double mediant = (a + c) / (b + d);
+            if (fabs(ratio - mediant) < eps) {
+                if (b + d <= max_denom) {
+                    return fill_params(ratio, a + c, b + d);
+                } else if (d > b) {
+                    return fill_params(ratio, c, d);
+                } else {
+                    return fill_params(ratio, a, b);
+                }
+            }
+            if (ratio > mediant) {
+                pa = a; pb = b;
+                a += c; b += d;
+            } else {
+                pc = c; pd = d;
+                c += a; d += b;
             }
         }
-        return best;
+        if (fabs(ratio - (pc / pd)) < fabs(ratio - (pa / pb))) {
+            return fill_params(ratio, pc, pd);
+        } else {
+            return fill_params(ratio, pa, pb);
+        }
     }
 
     vector<phase_rec> phase_data_for(int filterlen, const vector<double> &filter,
@@ -244,7 +260,8 @@ private:
 
         int buffer_length = buffer_left + buffer_right;
         buffer_length = max(buffer_length, int(m_s.buffer.size()));
-        
+
+        s.initial_phase = initial_phase;
         s.current_phase = initial_phase;
         s.phases = phase_data_for
             (s.filter_length, s.filter, input_spacing, parameters.denominator);
