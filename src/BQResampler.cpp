@@ -238,7 +238,7 @@ BQResampler::kaiser_for(double attenuation,
 }
     
 void
-BQResampler::sinc_multiply(double peak_to_zero, floatbuf &buf) const
+BQResampler::sinc_multiply(double peak_to_zero, vector<double> &buf) const
 {
     int len = int(buf.size());
     if (len < 2) return;
@@ -322,7 +322,7 @@ BQResampler::pick_params(double ratio) const
 
 vector<BQResampler::phase_rec>
 BQResampler::phase_data_for(int filter_length,
-                            const floatbuf &filter,
+                            const vector<double> &filter,
                             floatbuf &phase_sorted_filter,
                             int initial_phase,
                             int input_spacing,
@@ -366,10 +366,10 @@ BQResampler::phase_data_for(int filter_length,
     return phases;
 }
 
-BQResampler::floatbuf
+vector<double>
 BQResampler::make_filter(int filter_length, double peak_to_zero) const
 {
-    floatbuf filter;
+    vector<double> filter;
     filter.reserve(filter_length);
 
     double snr = 130.0;
@@ -403,7 +403,7 @@ BQResampler::state_for_ratio(double ratio) const
     s.filter_length = int(parameters.peak_to_zero * m_p_multiple + 1);
     if (s.filter_length % 2 == 0) ++s.filter_length;
 
-    floatbuf filter;
+    vector<double> filter;
         
     if (m_dynamism == RatioMostlyFixed) {
         if (m_debug_level > 0) {
