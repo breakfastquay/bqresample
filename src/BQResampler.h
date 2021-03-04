@@ -15,24 +15,28 @@ public:
     //!!! channels
     
     enum Dynamism { RatioOftenChanging, RatioMostlyFixed };
+    enum RatioChange { SmoothRatioChange, SuddenRatioChange };
     
-    BQResampler(Dynamism dynamism, double rate) :
+    BQResampler(Dynamism dynamism,
+                RatioChange ratio_change,
+                double rate) :
         m_fade_count(0),
         m_dynamism(dynamism),
+        m_ratio_change(ratio_change),
         m_initialised(false),
         m_initial_rate(rate),
         m_p_multiple(82)
     {
-        int proto_p = 160;
-        m_proto_length = proto_p * m_p_multiple + 1;
-        double snr = 130.0;
-//        double bandwidth = 80.0; // Hz
-//        double transition = (bandwidth * 2.0 * M_PI) / m_initial_rate;
-        double transition = 0.005;
-        m_kaiser_prototype = kaiser_for
-            (snr, transition, m_proto_length, m_proto_length);
-        sinc_multiply(proto_p, m_kaiser_prototype);
-        m_kaiser_prototype.push_back(0.0); // interpolate without fear
+        if (m_dynamism == RatioOftenChanging) {
+            int proto_p = 160;
+            m_proto_length = proto_p * m_p_multiple + 1;
+            double snr = 130.0;
+            double transition = 0.005;
+            m_prototype = kaiser_for
+                (snr, transition, m_proto_length, m_proto_length);
+            sinc_multiply(proto_p, m_prototype);
+            m_prototype.push_back(0.0); // interpolate without fear
+        }
     }
 
     int resample(float *const out,
@@ -43,14 +47,19 @@ public:
                  bool final) {
 
         int fade_length = round(m_initial_rate / 1000.0);
-        if (fade_length < 6) fade_length = 6;
+        if (fade_length < 6) {
+            fade_length = 6;
+        }
         int max_fade = min(outspace, int(floor(incount * ratio))) / 2;
-        if (fade_length > max_fade) fade_length = max_fade;
+        if (fade_length > max_fade) {
+            fade_length = max_fade;
+        }
         
         if (!m_initialised) {
             m_s = state_for_ratio(ratio);
             m_initialised = true;
-        } else if (ratio != m_s.parameters.ratio) {
+        } else if (ratio != m_s.parameters.ratio &&
+                   m_ratio_change == SmoothRatioChange) {
             m_fading = m_s;
             m_s = state_for_ratio(ratio);
             m_fade_count = fade_length;
@@ -112,19 +121,20 @@ private:
 
     struct phase_rec {
         int next_phase;
+        int length;
+        int start_index;
         int drop;
-        int zip_length;
-        vector<double> filter;
-        phase_rec() : next_phase(0), drop(0), zip_length(0) { }
+        phase_rec() : next_phase(0), length(0), start_index(0), drop(0) { }
     };
+
     struct state {
         params parameters;
         int initial_phase;
         int current_phase;
         int filter_length;
-        vector<double> filter;
-        vector<phase_rec> phases;
-        vector<double> buffer;
+        vector<phase_rec> phase_info;
+        vector<float> phase_sorted_filter;
+        vector<float> buffer;
         int left;
         int centre;
         int fill;
@@ -136,10 +146,11 @@ private:
     int m_fade_count;
 
     Dynamism m_dynamism;
+    RatioChange m_ratio_change;
     bool m_initialised;
     double m_initial_rate;
     int m_p_multiple;
-    vector<double> m_kaiser_prototype;
+    vector<double> m_prototype;
     int m_proto_length;
     
     static int gcd(int a, int b) {
@@ -156,13 +167,7 @@ private:
         p.denominator = denom / g;
         p.effective = double(p.numerator) / double(p.denominator);
         p.peak_to_zero = max(p.denominator, p.numerator);
-
-        if (ratio < 1.0) {
-//            p.peak_to_zero /= std::max (0.99, ratio);
-        } else { 
-//            p.peak_to_zero /= 0.99;
-        }
-        
+        p.peak_to_zero /= 0.985; //!!! parameterise
         p.scale = double(p.numerator) / double(p.peak_to_zero);
         return p;
     }
@@ -200,30 +205,48 @@ private:
         }
     }
 
-    vector<phase_rec> phase_data_for(int filterlen, const vector<double> &filter,
-                                     int input_spacing, int output_spacing) const {
-        int length = filterlen;
+    vector<phase_rec> phase_data_for(int filter_length,
+                                     const vector<double> &filter,
+                                     vector<float> &phase_sorted_filter,
+                                     int initial_phase,
+                                     int input_spacing,
+                                     int output_spacing) const {
+
         vector<phase_rec> phases;
+        phases.reserve(input_spacing);
+        
         for (int p = 0; p < input_spacing; ++p) {
             int next_phase = p - output_spacing;
             while (next_phase < 0) next_phase += input_spacing;
             next_phase %= input_spacing;
             double dspace = double(input_spacing);
-            int zip_length = ceil(double(length - p) / dspace);
+            int zip_length = ceil(double(filter_length - p) / dspace);
             int drop = ceil(double(max(0, output_spacing - p)) / dspace);
             phase_rec phase;
             phase.next_phase = next_phase;
             phase.drop = drop;
-            phase.zip_length = zip_length;
-            if (m_dynamism == RatioMostlyFixed) {
-                vector<double> pfilt(zip_length, 0.0);
-                for (int i = 0; i < zip_length; ++i) {
-                    pfilt[i] = filter[i * input_spacing + p];
-                }
-                phase.filter = pfilt;
-            }
+            phase.length = zip_length;
+            phase.start_index = 0; // we fill this in below
             phases.push_back(phase);
         }
+
+        if (m_dynamism == RatioMostlyFixed) {
+            phase_sorted_filter.clear();
+            phase_sorted_filter.reserve(filter_length);
+            for (int p = initial_phase; ; ) {
+                phase_rec &phase = phases[p];
+                phase.start_index = phase_sorted_filter.size();
+                for (int i = 0; i < phase.length; ++i) {
+                    phase_sorted_filter.push_back
+                        (filter[i * input_spacing + p]);
+                }
+                p = phase.next_phase;
+                if (p == initial_phase) {
+                    break;
+                }
+            }
+        }
+        
         return phases;
     }
     
@@ -235,21 +258,25 @@ private:
         s.parameters = parameters;
         s.filter_length = int(parameters.peak_to_zero * m_p_multiple + 1);
 
+        vector<double> filter;
+        
         if (m_dynamism == RatioMostlyFixed) {
-            //!!! can we share the prototype among instances even?
-            //!!! harmonise with reconstruct_one
-            vector<double> filter(s.filter_length, 0.0);
-            double ratio =
-                double(m_proto_length - 1) / double(s.filter_length - 1);
+            filter.reserve(s.filter_length);
+	    vector<double> kaiser = kaiser_for
+		(130.0, 0.005, 1, s.filter_length); //!!! harmonise with ctor
+	    int klength = kaiser.size();
+	    kaiser.push_back(0.0);
+            double m = double(klength - 1) / double(s.filter_length - 1);
             for (int i = 0; i < s.filter_length; ++i) {
-                double ix = i * ratio;
+                double ix = i * m;
                 int iix = floor(ix);
                 double remainder = ix - iix;
-                double value = m_kaiser_prototype[iix] * (1.0 - remainder);
-                value += m_kaiser_prototype[iix+1] * remainder;
-                filter[i] = value;
+                double value = 0.0;
+                value += kaiser[iix] * (1.0 - remainder);
+                value += kaiser[iix+1] * remainder;
+                filter.push_back(value);
             }
-            s.filter = filter;
+	    sinc_multiply(parameters.peak_to_zero, filter);
         }
 
         int half_length = s.filter_length / 2; // nb length is actually odd
@@ -263,24 +290,23 @@ private:
 
         s.initial_phase = initial_phase;
         s.current_phase = initial_phase;
-        s.phases = phase_data_for
-            (s.filter_length, s.filter, input_spacing, parameters.denominator);
-        s.buffer = vector<double>(buffer_length, 0.0);
+        s.phase_info = phase_data_for
+            (s.filter_length, filter, s.phase_sorted_filter,
+             initial_phase, input_spacing, parameters.denominator);
+        s.buffer = vector<float>(buffer_length, 0.0);
         s.centre = buffer_length / 2;
         s.left = s.centre - buffer_left;
         s.fill = s.centre;
 
-        int n_phases = int(s.phases.size());
+        int n_phases = int(s.phase_info.size());
         
         if (m_s.buffer.size() > 0) {
-            if (m_s.current_phase < n_phases) {
-                double distance_through =
-                    double(m_s.current_phase) / double(n_phases);
-                s.current_phase = round(n_phases * distance_through);
-                if (s.current_phase >= n_phases) {
-                    cerr << "!!! -> Need to drop an input sample!?" << endl;
-                    s.current_phase = 0;
-                }
+            int phases_then = int(m_s.phase_info.size());
+            double distance_through =
+                double(m_s.current_phase) / double(phases_then);
+            s.current_phase = round(n_phases * distance_through);
+            if (s.current_phase >= n_phases) {
+                s.current_phase = n_phases - 1;
             }
             for (int i = 0; i < m_s.fill; ++i) {
                 int offset = i - m_s.centre;
@@ -296,13 +322,15 @@ private:
     }
 
     double reconstruct_one(state &s) const {
-        const phase_rec &pr = s.phases[s.current_phase];
-        int phase_length = pr.zip_length;
+        const phase_rec &pr = s.phase_info[s.current_phase];
+        int phase_length = pr.length;
         double result = 0.0;
 
         if (m_dynamism == RatioMostlyFixed) {
+            int phase_start = pr.start_index;
             for (int i = 0; i < phase_length; ++i) {
-                result += pr.filter[i] * s.buffer[s.left + i];
+                result += s.phase_sorted_filter[phase_start + i] *
+                    s.buffer[s.left + i];
             }
         } else {
             double ratio =
@@ -313,8 +341,8 @@ private:
                 double proto_index = ratio * filter_index;
                 int iix = floor(proto_index);
                 double remainder = proto_index - iix;
-                double filter_value = m_kaiser_prototype[iix] * (1.0 - remainder);
-                filter_value += m_kaiser_prototype[iix+1] * remainder;
+                double filter_value = m_prototype[iix] * (1.0 - remainder);
+                filter_value += m_prototype[iix+1] * remainder;
                 result += filter_value * sample;
             }
         }

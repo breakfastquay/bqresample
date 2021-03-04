@@ -120,7 +120,8 @@ namespace Resamplers {
 class D_IPP : public Resampler::Impl
 {
 public:
-    D_IPP(Resampler::Quality quality, int channels, double initialSampleRate,
+    D_IPP(Resampler::Quality quality, Resampler::RatioChange,
+          int channels, double initialSampleRate,
           int maxBufferSize, int debugLevel);
     ~D_IPP();
 
@@ -165,6 +166,7 @@ protected:
 };
 
 D_IPP::D_IPP(Resampler::Quality /* quality */,
+             Resampler::RatioChange /* ratioChange */,
              int channels, double initialSampleRate,
              int maxBufferSize, int debugLevel) :
     m_state(0),
@@ -549,7 +551,8 @@ D_IPP::reset()
 class D_SRC : public Resampler::Impl
 {
 public:
-    D_SRC(Resampler::Quality quality, int channels, double initialSampleRate,
+    D_SRC(Resampler::Quality quality, Resampler::RatioChange ratioChange,
+          int channels, double initialSampleRate,
           int maxBufferSize, int m_debugLevel);
     ~D_SRC();
 
@@ -580,11 +583,12 @@ protected:
     int m_ioutsize;
     double m_prevRatio;
     bool m_ratioUnset;
+    bool m_smoothRatios;
     int m_debugLevel;
 };
 
-D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
-             int maxBufferSize, int debugLevel) :
+D_SRC::D_SRC(Resampler::Quality quality, Resampler::RatioChange ratioChange,
+             int channels, double, int maxBufferSize, int debugLevel) :
     m_src(0),
     m_iin(0),
     m_iout(0),
@@ -593,6 +597,7 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, double,
     m_ioutsize(0),
     m_prevRatio(1.0),
     m_ratioUnset(true),
+    m_smoothRatios(ratioChange == Resampler::SmoothRatioChange),
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
@@ -698,7 +703,7 @@ D_SRC::resampleInterleaved(float *const BQ_R__ out,
         outcount = int(ceil(incount * ratio) + 5);
     }
 
-    if (m_ratioUnset) {
+    if (m_ratioUnset || !m_smoothRatios) {
 
         // The first time we set a ratio, we want to do it directly
         src_set_ratio(m_src, ratio);
@@ -770,7 +775,8 @@ D_SRC::reset()
 class D_Resample : public Resampler::Impl
 {
 public:
-    D_Resample(Resampler::Quality quality, int channels, double initialSampleRate,
+    D_Resample(Resampler::Quality quality, Resampler::RatioChange,
+               int channels, double initialSampleRate,
                int maxBufferSize, int m_debugLevel);
     ~D_Resample();
 
@@ -958,8 +964,8 @@ class D_BQResampler : public Resampler::Impl
 {
 public:
     //!!! + Dynamism
-    D_BQResampler(Resampler::Quality quality, int channels,
-                  double initialSampleRate,
+    D_BQResampler(Resampler::Quality quality, Resampler::RatioChange ratioChange,
+                  int channels, double initialSampleRate,
                   int maxBufferSize, int debugLevel);
     ~D_BQResampler();
 
@@ -992,6 +998,7 @@ protected:
 };
 
 D_BQResampler::D_BQResampler(Resampler::Quality quality,
+                             Resampler::RatioChange ratioChange,
                              int channels, double initialSampleRate,
                              int maxBufferSize, int debugLevel) :
     m_resamplers(0),
@@ -1010,8 +1017,11 @@ D_BQResampler::D_BQResampler(Resampler::Quality quality,
 
     m_resamplers = new BQResampler *[m_channels];
     for (int c = 0; c < m_channels; ++c) {
-        m_resamplers[c] = new BQResampler(BQResampler::RatioOftenChanging,
-                                          initialSampleRate);
+        m_resamplers[c] = new BQResampler
+            (BQResampler::RatioOftenChanging,
+             ratioChange == Resampler::SmoothRatioChange ?
+             BQResampler::SmoothRatioChange : BQResampler::SuddenRatioChange,
+             initialSampleRate);
     }
     
     if (maxBufferSize > 0 && m_channels > 1) {
@@ -1102,7 +1112,8 @@ D_BQResampler::reset()
 class D_Speex : public Resampler::Impl
 {
 public:
-    D_Speex(Resampler::Quality quality, int channels, double initialSampleRate,
+    D_Speex(Resampler::Quality quality, Resampler::RatioChange,
+            int channels, double initialSampleRate,
             int maxBufferSize, int debugLevel);
     ~D_Speex();
 
@@ -1142,7 +1153,7 @@ protected:
                     double ratio, bool final);
 };
 
-D_Speex::D_Speex(Resampler::Quality quality,
+D_Speex::D_Speex(Resampler::Quality quality, Resampler::RatioChange,
                  int channels, double initialSampleRate,
                  int maxBufferSize, int debugLevel) :
     m_resampler(0),
@@ -1450,7 +1461,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
     case 0:
 #ifdef HAVE_IPP
         d = new Resamplers::D_IPP
-            (params.quality,
+            (params.quality, params.ratioChange,
              channels,
              params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
@@ -1462,7 +1473,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
     case 1:
 #ifdef HAVE_LIBSAMPLERATE
         d = new Resamplers::D_SRC
-            (params.quality,
+            (params.quality, params.ratioChange,
              channels,
              params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
@@ -1474,7 +1485,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
     case 2:
 #ifdef USE_SPEEX
         d = new Resamplers::D_Speex
-            (params.quality,
+            (params.quality, params.ratioChange,
              channels,
              params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
@@ -1486,7 +1497,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
     case 3:
 #ifdef HAVE_LIBRESAMPLE
         d = new Resamplers::D_Resample
-            (params.quality,
+            (params.quality, params.ratioChange,
              channels,
              params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
@@ -1498,7 +1509,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
     case 4:
 #ifdef USE_BQRESAMPLER
         d = new Resamplers::D_BQResampler
-            (params.quality,
+            (params.quality, params.ratioChange,
              channels,
              params.initialSampleRate, params.maxBufferSize, params.debugLevel);
 #else
