@@ -3,3 +3,4 @@ syntax: glob
 *.o
 *.a
 test-*
+example/resample

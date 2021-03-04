@@ -963,10 +963,7 @@ D_Resample::reset()
 class D_BQResampler : public Resampler::Impl
 {
 public:
-    //!!! + Dynamism
-    D_BQResampler(Resampler::Quality quality, Resampler::RatioChange ratioChange,
-                  int channels, double initialSampleRate,
-                  int maxBufferSize, int debugLevel);
+    D_BQResampler(Resampler::Parameters params, int channels);
     ~D_BQResampler();
 
     int resample(float *const BQ_R__ *const BQ_R__ out,
@@ -997,36 +994,58 @@ protected:
     int m_debugLevel;
 };
 
-D_BQResampler::D_BQResampler(Resampler::Quality quality,
-                             Resampler::RatioChange ratioChange,
-                             int channels, double initialSampleRate,
-                             int maxBufferSize, int debugLevel) :
+D_BQResampler::D_BQResampler(Resampler::Parameters params, int channels) :
     m_resamplers(0),
     m_din(0),
     m_dout(0),
     m_channels(channels),
     m_dinsize(0),
     m_doutsize(0),
-    m_debugLevel(debugLevel)
+    m_debugLevel(params.debugLevel)
 {
-    (void)quality; //!!!
-    
     if (m_debugLevel > 0) {
         cerr << "Resampler::Resampler: using BQResampler implementation" << endl;
     }
 
+    BQResampler::Parameters rparams;
+    switch (params.quality) {
+    case Resampler::Best:
+        rparams.quality = BQResampler::Best;
+        break;
+    case Resampler::FastestTolerable:
+        rparams.quality = BQResampler::FastestTolerable;
+        break;
+    case Resampler::Fastest:
+        rparams.quality = BQResampler::Fastest;
+        break;
+    }
+    switch (params.dynamism) {
+    case Resampler::RatioOftenChanging:
+        rparams.dynamism = BQResampler::RatioOftenChanging;
+        break;
+    case Resampler::RatioMostlyFixed:
+        rparams.dynamism = BQResampler::RatioMostlyFixed;
+        break;
+    }
+    switch (params.ratioChange) {
+    case Resampler::SmoothRatioChange:
+        rparams.ratioChange = BQResampler::SmoothRatioChange;
+        break;
+    case Resampler::SuddenRatioChange:
+        rparams.ratioChange = BQResampler::SuddenRatioChange;
+        break;
+    }
+    rparams.referenceSampleRate = params.initialSampleRate;
+    rparams.debugLevel = params.debugLevel;
+    
     m_resamplers = new BQResampler *[m_channels];
     for (int c = 0; c < m_channels; ++c) {
-        m_resamplers[c] = new BQResampler
-            (BQResampler::RatioOftenChanging,
-             ratioChange == Resampler::SmoothRatioChange ?
-             BQResampler::SmoothRatioChange : BQResampler::SuddenRatioChange,
-             initialSampleRate);
+        m_resamplers[c] = new BQResampler(rparams);
     }
     
-    if (maxBufferSize > 0 && m_channels > 1) {
-        m_dinsize = maxBufferSize;
-        m_doutsize = maxBufferSize;
+    if (params.maxBufferSize > 0 && m_channels > 1) {
+        m_dinsize = params.maxBufferSize;
+        m_doutsize = params.maxBufferSize;
         m_din = allocate_channels<float>(m_channels, m_dinsize);
         m_dout = allocate_channels<float>(m_channels, m_doutsize);
     }
@@ -1508,10 +1527,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
 
     case 4:
 #ifdef USE_BQRESAMPLER
-        d = new Resamplers::D_BQResampler
-            (params.quality, params.ratioChange,
-             channels,
-             params.initialSampleRate, params.maxBufferSize, params.debugLevel);
+        d = new Resamplers::D_BQResampler(params, channels);
 #else
         cerr << "Resampler::Resampler: No implementation available!" << endl;
         abort();

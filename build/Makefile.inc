@@ -1,6 +1,7 @@
 
 SRC_DIR	:= src
 TEST_DIR := test
+EXAMPLE_DIR := example
 SPEEX_DIR := speex
 HEADER_DIR := bqresample
 
@@ -12,6 +13,9 @@ OBJECTS	:= $(OBJECTS:.c=.o)
 
 TEST_SOURCES	:= $(wildcard $(TEST_DIR)/*.cpp)
 TEST_OBJECTS	:= $(TEST_SOURCES:.cpp=.o)
+
+EXAMPLE_SOURCES	:= $(wildcard $(EXAMPLE_DIR)/*.cpp)
+EXAMPLE_OBJECTS	:= $(EXAMPLE_SOURCES:.cpp=.o)
 
 OPTFLAGS ?= -O3 -ffast-math
 
@@ -26,6 +30,8 @@ all:	$(LIBRARY)
 test:	$(LIBRARY) test-resampler
 	./test-resampler
 
+example:	$(LIBRARY) example/resample
+
 valgrind:	$(LIBRARY) test-resampler
 	valgrind ./test-resampler
 
@@ -35,17 +41,21 @@ $(LIBRARY):	$(OBJECTS)
 test-resampler:	test/TestResampler.o $(LIBRARY)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lboost_unit_test_framework -L../bqvec -lbqvec $(THIRD_PARTY_LIBS)
 
+example/resample: example/resample.o $(LIBRARY)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lsndfile -L../bqvec -lbqvec $(THIRD_PARTY_LIBS)
+
 clean:		
-	rm -f $(OBJECTS) $(TEST_OBJECTS)
+	rm -f $(OBJECTS) $(TEST_OBJECTS) $(EXAMPLE_OBJECTS)
 
 distclean:	clean
 	rm -f $(LIBRARY) test-resampler
 
 depend:
-	makedepend $(RESAMPLE_DEFINES) -Y -fbuild/Makefile.inc $(SOURCES) $(HEADERS) $(TEST_SOURCES)
+	makedepend $(RESAMPLE_DEFINES) -Y -fbuild/Makefile.inc $(SOURCES) $(HEADERS) $(TEST_SOURCES) $(EXAMPLE_SOURCES)
 
 
 # DO NOT DELETE
 
 src/Resampler.o: bqresample/Resampler.h src/BQResampler.h
 test/TestResampler.o: bqresample/Resampler.h
+example/resample.o: bqresample/Resampler.h

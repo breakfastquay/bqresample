@@ -28,7 +28,7 @@ ALLOCATOR_DEFINES 	:=
 # Add any related includes and libraries here
 #
 THIRD_PARTY_INCLUDES	:=
-THIRD_PARTY_LIBS	:= -lsamplerate
+THIRD_PARTY_LIBS	:= 
 
 
 # If you are including a set of bq libraries into a project, you can
