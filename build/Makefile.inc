@@ -55,7 +55,8 @@ depend:
 
 
 # DO NOT DELETE
-
+ 
+src/BQResampler.o: src/BQResampler.h
 src/Resampler.o: bqresample/Resampler.h src/BQResampler.h
 test/TestResampler.o: bqresample/Resampler.h
 example/resample.o: bqresample/Resampler.h

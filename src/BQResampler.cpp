@@ -377,6 +377,7 @@ BQResampler::state_for_ratio(double ratio) const
     state s;
     s.parameters = parameters;
     s.filter_length = int(parameters.peak_to_zero * m_p_multiple + 1);
+    if (s.filter_length % 2 == 0) ++s.filter_length;
 
     vector<double> filter;
         

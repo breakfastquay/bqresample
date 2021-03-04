@@ -69,7 +69,9 @@ int main(int argc, char **argv)
 
     breakfastquay::Resampler::Parameters parameters;
     parameters.quality = breakfastquay::Resampler::Best;
+    parameters.dynamism = breakfastquay::Resampler::RatioMostlyFixed;
     parameters.initialSampleRate = info_in.samplerate;
+    parameters.debugLevel = 1;
     breakfastquay::Resampler resampler(parameters, 1);
 
     int n = 0;
