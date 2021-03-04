@@ -53,6 +53,8 @@ using std::endl;
 using std::min;
 using std::max;
 
+namespace breakfastquay {
+
 BQResampler::BQResampler(Parameters parameters) :
     m_dynamism(parameters.dynamism),
     m_ratio_change(parameters.ratioChange),
@@ -73,16 +75,11 @@ BQResampler::BQResampler(Parameters parameters) :
     if (m_dynamism == RatioOftenChanging) {
         int proto_p = 160;
         m_proto_length = proto_p * m_p_multiple + 1;
-        double snr = 130.0;
-        double transition = 0.005;
         if (m_debug_level > 0) {
             cerr << "BQResampler: creating prototype filter of length "
                  << m_proto_length << endl;
         }
-        m_prototype = kaiser_for
-            (snr, transition, m_proto_length, m_proto_length);
-        sinc_multiply(proto_p, m_prototype);
-        //!!! todo: factor out from state_for_ratio (we could make a longer filter here, interpolating the kaiser part)
+        m_prototype = make_filter(m_proto_length, proto_p);
         m_prototype.push_back(0.0); // interpolate without fear
     }
 }
@@ -368,6 +365,33 @@ BQResampler::phase_data_for(int filter_length,
         
     return phases;
 }
+
+vector<double>
+BQResampler::make_filter(int filter_length, double peak_to_zero) const
+{
+    vector<double> filter;
+    filter.reserve(filter_length);
+
+    double snr = 130.0;
+    double transition = 0.005;
+    vector<double> kaiser = kaiser_for(snr, transition, 1, filter_length);
+    int k_length = kaiser.size();
+    kaiser.push_back(0.0);
+    
+    double m = double(k_length - 1) / double(filter_length - 1);
+    for (int i = 0; i < filter_length; ++i) {
+        double ix = i * m;
+        int iix = floor(ix);
+        double remainder = ix - iix;
+        double value = 0.0;
+        value += kaiser[iix] * (1.0 - remainder);
+        value += kaiser[iix+1] * remainder;
+        filter.push_back(value);
+    }
+    
+    sinc_multiply(peak_to_zero, filter);
+    return filter;
+}
     
 BQResampler::state
 BQResampler::state_for_ratio(double ratio) const
@@ -386,22 +410,7 @@ BQResampler::state_for_ratio(double ratio) const
             cerr << "BQResampler: creating filter of length " << s.filter_length
                  << endl;
         }
-        filter.reserve(s.filter_length);
-        vector<double> kaiser = kaiser_for
-            (130.0, 0.005, 1, s.filter_length); //!!! harmonise with ctor
-        int klength = kaiser.size();
-        kaiser.push_back(0.0);
-        double m = double(klength - 1) / double(s.filter_length - 1);
-        for (int i = 0; i < s.filter_length; ++i) {
-            double ix = i * m;
-            int iix = floor(ix);
-            double remainder = ix - iix;
-            double value = 0.0;
-            value += kaiser[iix] * (1.0 - remainder);
-            value += kaiser[iix+1] * remainder;
-            filter.push_back(value);
-        }
-        sinc_multiply(parameters.peak_to_zero, filter);
+        filter = make_filter(s.filter_length, parameters.peak_to_zero);
     }
 
     int half_length = s.filter_length / 2; // nb length is actually odd
@@ -466,7 +475,7 @@ BQResampler::reconstruct_one(state &s) const
 
     if (m_dynamism == RatioMostlyFixed) {
         int phase_start = pr.start_index;
-        result = breakfastquay::v_multiply_and_sum
+        result = v_multiply_and_sum
             (s.phase_sorted_filter.data() + phase_start,
              s.buffer.data() + s.left,
              phase_length);
@@ -485,8 +494,8 @@ BQResampler::reconstruct_one(state &s) const
     }
 
     if (pr.drop > 0) {
-        breakfastquay::v_move(s.buffer.data(), s.buffer.data() + pr.drop,
-                              int(s.buffer.size()) - pr.drop);
+        v_move(s.buffer.data(), s.buffer.data() + pr.drop,
+               int(s.buffer.size()) - pr.drop);
         for (int i = 0; i < pr.drop; ++i) {
             s.buffer[s.buffer.size() - pr.drop + i] = 0.0;
         }
@@ -495,4 +504,6 @@ BQResampler::reconstruct_one(state &s) const
 
     s.current_phase = pr.next_phase;
     return result * s.parameters.scale;
+}
+
 }

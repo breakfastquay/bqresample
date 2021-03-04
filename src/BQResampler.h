@@ -40,6 +40,8 @@
 
 #include <bqvec/Allocators.h>
 
+namespace breakfastquay {
+
 class BQResampler
 {
 public:
@@ -128,6 +130,9 @@ private:
     params fill_params(double ratio, int num, int denom) const;
     params pick_params(double ratio) const;
 
+    std::vector<double> make_filter(int filter_length,
+                                    double peak_to_zero) const;
+    
     std::vector<phase_rec> phase_data_for(int filter_length,
                                           const std::vector<double> &filter,
                                           floatbuf &phase_sorted_filter,
@@ -138,5 +143,7 @@ private:
     state state_for_ratio(double ratio) const;
     double reconstruct_one(state &s) const;
 };
+
+}
 
 #endif
