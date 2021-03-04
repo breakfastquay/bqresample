@@ -116,7 +116,7 @@ private:
     state m_fading;
     int m_fade_count;
     
-    std::vector<double> m_prototype;
+    floatbuf m_prototype;
     int m_proto_length;
     bool m_initialised;
 
@@ -125,16 +125,16 @@ private:
     std::vector<double> kaiser(double beta, int len) const;
     std::vector<double> kaiser_for(double attenuation, double transition,
                                    int minlen, int maxlen) const;
-    void sinc_multiply(double peak_to_zero, std::vector<double> &buf) const;
+    void sinc_multiply(double peak_to_zero, floatbuf &buf) const;
 
     params fill_params(double ratio, int num, int denom) const;
     params pick_params(double ratio) const;
 
-    std::vector<double> make_filter(int filter_length,
-                                    double peak_to_zero) const;
+    floatbuf make_filter(int filter_length,
+                         double peak_to_zero) const;
     
     std::vector<phase_rec> phase_data_for(int filter_length,
-                                          const std::vector<double> &filter,
+                                          const floatbuf &filter,
                                           floatbuf &phase_sorted_filter,
                                           int initial_phase,
                                           int input_spacing,
