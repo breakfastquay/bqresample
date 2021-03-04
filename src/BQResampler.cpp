@@ -39,6 +39,9 @@
 
 #include <iostream>
 
+#include <bqvec/Allocators.h>
+#include <bqvec/VectorOps.h>
+
 //!!! todo: quality settings
 //!!! todo: avoid reallocations in RatioOftenChanging mode (& document)
 //!!! copy/assign etc
@@ -72,14 +75,14 @@ BQResampler::BQResampler(Parameters parameters) :
         m_proto_length = proto_p * m_p_multiple + 1;
         double snr = 130.0;
         double transition = 0.005;
-        m_prototype = kaiser_for
-            (snr, transition, m_proto_length, m_proto_length);
-        sinc_multiply(proto_p, m_prototype);
-        //!!! todo: factor out from state_for_ratio (we could make a longer filter here, interpolating the kaiser part)
         if (m_debug_level > 0) {
             cerr << "BQResampler: creating prototype filter of length "
                  << m_proto_length << endl;
         }
+        m_prototype = kaiser_for
+            (snr, transition, m_proto_length, m_proto_length);
+        sinc_multiply(proto_p, m_prototype);
+        //!!! todo: factor out from state_for_ratio (we could make a longer filter here, interpolating the kaiser part)
         m_prototype.push_back(0.0); // interpolate without fear
     }
 }
@@ -228,6 +231,12 @@ BQResampler::kaiser_for(double attenuation,
         beta = 0.5842 * (pow (attenuation - 21.0, 0.4)) +
             0.07886 * (attenuation - 21.0);
     }
+    if (m_debug_level > 0) {
+        cerr << "BQResampler: window attenuation " << attenuation
+             << ", transition " << transition
+             << " -> length " << m << " adjusted to " << mb
+             << ", beta " << beta << endl;
+    }
     return kaiser(beta, mb);
 }
     
@@ -267,8 +276,9 @@ BQResampler::fill_params(double ratio, int num, int denom) const
     p.scale = double(p.numerator) / double(p.peak_to_zero);
 
     if (m_debug_level > 0) {
-        cerr << "BQResampler: ratio " << p.ratio << " -> fraction " << p.numerator
-             << "/" << p.denominator << " with error " << p.effective - p.ratio
+        cerr << "BQResampler: ratio " << p.ratio
+             << " -> fraction " << p.numerator << "/" << p.denominator
+             << " with error " << p.effective - p.ratio
              << endl;
         cerr << "BQResampler: peak-to-zero " << p.peak_to_zero
              << ", scale " << p.scale
@@ -316,7 +326,7 @@ BQResampler::pick_params(double ratio) const
 vector<BQResampler::phase_rec>
 BQResampler::phase_data_for(int filter_length,
                             const vector<double> &filter,
-                            vector<float> &phase_sorted_filter,
+                            floatbuf &phase_sorted_filter,
                             int initial_phase,
                             int input_spacing,
                             int output_spacing) const
@@ -407,7 +417,7 @@ BQResampler::state_for_ratio(double ratio) const
     s.phase_info = phase_data_for
         (s.filter_length, filter, s.phase_sorted_filter,
          initial_phase, input_spacing, parameters.denominator);
-    s.buffer = vector<float>(buffer_length, 0.0);
+    s.buffer = floatbuf(buffer_length, 0.0);
     s.centre = buffer_length / 2;
     s.left = s.centre - buffer_left;
     s.fill = s.centre;
@@ -455,17 +465,16 @@ BQResampler::reconstruct_one(state &s) const
 
     if (m_dynamism == RatioMostlyFixed) {
         int phase_start = pr.start_index;
-        for (int i = 0; i < phase_length; ++i) {
-            result += s.phase_sorted_filter[phase_start + i] *
-                s.buffer[s.left + i];
-        }
+        result = breakfastquay::v_multiply_and_sum
+            (s.phase_sorted_filter.data() + phase_start,
+             s.buffer.data() + s.left,
+             phase_length);
     } else {
-        double ratio =
-            double(m_proto_length - 1) / double(s.filter_length - 1);
+        double m = double(m_proto_length - 1) / double(s.filter_length - 1);
         for (int i = 0; i < phase_length; ++i) {
             double sample = s.buffer[s.left + i];
             int filter_index = i * s.parameters.numerator + s.current_phase;
-            double proto_index = ratio * filter_index;
+            double proto_index = m * filter_index;
             int iix = floor(proto_index);
             double remainder = proto_index - iix;
             double filter_value = m_prototype[iix] * (1.0 - remainder);
@@ -473,14 +482,16 @@ BQResampler::reconstruct_one(state &s) const
             result += filter_value * sample;
         }
     }
-        
-    for (int i = pr.drop; i < int(s.buffer.size()); ++i) {
-        s.buffer[i - pr.drop] = s.buffer[i];
+
+    if (pr.drop > 0) {
+        breakfastquay::v_move(s.buffer.data(), s.buffer.data() + pr.drop,
+                              int(s.buffer.size()) - pr.drop);
+        for (int i = 0; i < pr.drop; ++i) {
+            s.buffer[s.buffer.size() - pr.drop + i] = 0.0;
+        }
+        s.fill -= pr.drop;
     }
-    for (int i = 0; i < pr.drop; ++i) {
-        s.buffer[s.buffer.size() - pr.drop + i] = 0.0;
-    }
-    s.fill -= pr.drop;
+
     s.current_phase = pr.next_phase;
     return result * s.parameters.scale;
 }

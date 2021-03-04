@@ -38,6 +38,8 @@
 
 #include <vector>
 
+#include <bqvec/Allocators.h>
+
 class BQResampler
 {
 public:
@@ -92,14 +94,16 @@ private:
         phase_rec() : next_phase(0), length(0), start_index(0), drop(0) { }
     };
 
+    typedef std::vector<float, breakfastquay::StlAllocator<float> > floatbuf;
+    
     struct state {
         params parameters;
         int initial_phase;
         int current_phase;
         int filter_length;
         std::vector<phase_rec> phase_info;
-        std::vector<float> phase_sorted_filter;
-        std::vector<float> buffer;
+        floatbuf phase_sorted_filter;
+        floatbuf buffer;
         int left;
         int centre;
         int fill;
@@ -126,7 +130,7 @@ private:
 
     std::vector<phase_rec> phase_data_for(int filter_length,
                                           const std::vector<double> &filter,
-                                          std::vector<float> &phase_sorted_filter,
+                                          floatbuf &phase_sorted_filter,
                                           int initial_phase,
                                           int input_spacing,
                                           int output_spacing) const;
