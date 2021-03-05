@@ -72,11 +72,20 @@ public:
                  double ratio, bool final);
 
 private:
+    struct QualityParams {
+        int p_multiple;
+        int proto_p;
+        double k_snr;
+        double k_transition;
+        double cut;
+        QualityParams(Quality);
+    };
+
+    const QualityParams m_qparams;
     const Dynamism m_dynamism;
     const RatioChange m_ratio_change;
     const int m_debug_level;
     const double m_initial_rate;
-    const int m_p_multiple;
 
     struct params {
         double ratio;

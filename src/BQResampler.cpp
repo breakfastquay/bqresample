@@ -42,7 +42,6 @@
 #include <bqvec/Allocators.h>
 #include <bqvec/VectorOps.h>
 
-//!!! todo: quality settings
 //!!! copy/assign etc
 //!!! channels
 
@@ -55,11 +54,11 @@ using std::max;
 namespace breakfastquay {
 
 BQResampler::BQResampler(Parameters parameters) :
+    m_qparams(parameters.quality),
     m_dynamism(parameters.dynamism),
     m_ratio_change(parameters.ratioChange),
     m_debug_level(parameters.debugLevel),
     m_initial_rate(parameters.referenceSampleRate),
-    m_p_multiple(82),
     m_fade_count(0),
     m_initialised(false)
 {
@@ -72,13 +71,12 @@ BQResampler::BQResampler(Parameters parameters) :
     }
     
     if (m_dynamism == RatioOftenChanging) {
-        int proto_p = 160;
-        m_proto_length = proto_p * m_p_multiple + 1;
+        m_proto_length = m_qparams.proto_p * m_qparams.p_multiple + 1;
         if (m_debug_level > 0) {
             cerr << "BQResampler: creating prototype filter of length "
                  << m_proto_length << endl;
         }
-        m_prototype = make_filter(m_proto_length, proto_p);
+        m_prototype = make_filter(m_proto_length, m_qparams.proto_p);
         m_prototype.push_back(0.0); // interpolate without fear
     }
 
@@ -96,6 +94,33 @@ BQResampler::BQResampler(Parameters parameters) :
     m_fade = &m_state_b;
 }
 
+BQResampler::QualityParams::QualityParams(Quality q)
+{
+    switch (q) {
+    case Fastest:
+        p_multiple = 12;
+        proto_p = 160;
+        k_snr = 90.0;
+        k_transition = 0.01;
+        cut = 0.8;
+        break;
+    case FastestTolerable:
+        p_multiple = 62;
+        proto_p = 160;
+        k_snr = 110.0;
+        k_transition = 0.005;
+        cut = 0.93;
+        break;
+    case Best:
+        p_multiple = 122;
+        proto_p = 800;
+        k_snr = 130.0;
+        k_transition = 0.005;
+        cut = 0.96;
+        break;
+    }
+}
+    
 int
 BQResampler::resample(float *const out,
                       int outspace,
@@ -284,7 +309,7 @@ BQResampler::fill_params(double ratio, int num, int denom) const
     p.denominator = denom / g;
     p.effective = double(p.numerator) / double(p.denominator);
     p.peak_to_zero = max(p.denominator, p.numerator);
-    p.peak_to_zero /= 0.985; //!!! parameterise
+    p.peak_to_zero /= m_qparams.cut;
     p.scale = double(p.numerator) / double(p.peak_to_zero);
 
     if (m_debug_level > 0) {
@@ -308,7 +333,7 @@ BQResampler::pick_params(double ratio) const
     int max_denom = 192000;
     double a = 0.0, b = 1.0, c = 1.0, d = 0.0;
     double pa = a, pb = b, pc = c, pd = d;
-    double eps = 1e-15;
+    double eps = 1e-9;
     while (b <= max_denom && d <= max_denom) {
         double mediant = (a + c) / (b + d);
         if (fabs(ratio - mediant) < eps) {
@@ -387,9 +412,8 @@ BQResampler::make_filter(int filter_length, double peak_to_zero) const
     vector<double> filter;
     filter.reserve(filter_length);
 
-    double snr = 130.0;
-    double transition = 0.005;
-    vector<double> kaiser = kaiser_for(snr, transition, 1, filter_length);
+    vector<double> kaiser = kaiser_for(m_qparams.k_snr, m_qparams.k_transition,
+                                       1, filter_length);
     int k_length = kaiser.size();
     kaiser.push_back(0.0);
     
@@ -417,7 +441,7 @@ BQResampler::state_for_ratio(BQResampler::state &target_state,
     target_state.parameters = parameters;
 
     target_state.filter_length =
-        int(parameters.peak_to_zero * m_p_multiple + 1);
+        int(parameters.peak_to_zero * m_qparams.p_multiple + 1);
     if (target_state.filter_length % 2 == 0) {
         ++target_state.filter_length;
     }
@@ -479,8 +503,7 @@ BQResampler::state_for_ratio(BQResampler::state &target_state,
 
     if (prev_state.buffer.size() > 0) {
         if (int(prev_state.buffer.size()) == buffer_length) {
-            v_copy(target_state.buffer.data(), prev_state.buffer.data(),
-                   buffer_length);
+            target_state.buffer = prev_state.buffer;
             target_state.fill = prev_state.fill;
         } else {
             target_state.buffer = floatbuf(buffer_length, 0.0);
