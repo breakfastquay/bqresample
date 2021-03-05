@@ -39,6 +39,7 @@
 #include <vector>
 
 #include <bqvec/Allocators.h>
+#include <bqvec/Restrict.h>
 
 namespace breakfastquay {
 
@@ -112,8 +113,13 @@ private:
         state() : initial_phase(0), current_phase(0), filter_length(0),
                   left(0), centre(0), fill(0) { }
     };
-    state m_s;
-    state m_fading;
+
+    state m_state_a;
+    state m_state_b;
+
+    state *m_s;        // points at either m_state_a or m_state_b
+    state *m_fade;     // whichever one m_s does not point to
+    
     int m_fade_count;
     
     std::vector<double> m_prototype;
@@ -133,15 +139,19 @@ private:
     std::vector<double> make_filter(int filter_length,
                                     double peak_to_zero) const;
     
-    std::vector<phase_rec> phase_data_for(int filter_length,
-                                          const std::vector<double> &filter,
-                                          floatbuf &phase_sorted_filter,
-                                          int initial_phase,
-                                          int input_spacing,
-                                          int output_spacing) const;
+    void phase_data_for(std::vector<phase_rec> &target_phase_data,
+                        floatbuf &target_phase_sorted_filter,
+                        int filter_length,
+                        const std::vector<double> *filter,
+                        int initial_phase,
+                        int input_spacing,
+                        int output_spacing) const;
     
-    state state_for_ratio(double ratio) const;
-    double reconstruct_one(state &s) const;
+    void state_for_ratio(state &target_state,
+                         double ratio,
+                         const state &BQ_R__ prev_state) const;
+    
+    double reconstruct_one(state *s) const;
 };
 
 }

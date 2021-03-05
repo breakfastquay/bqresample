@@ -43,7 +43,6 @@
 #include <bqvec/VectorOps.h>
 
 //!!! todo: quality settings
-//!!! todo: avoid reallocations in RatioOftenChanging mode (& document)
 //!!! copy/assign etc
 //!!! channels
 
@@ -82,6 +81,19 @@ BQResampler::BQResampler(Parameters parameters) :
         m_prototype = make_filter(m_proto_length, proto_p);
         m_prototype.push_back(0.0); // interpolate without fear
     }
+
+    int phase_reserve = 2 * int(round(m_initial_rate));
+    int buffer_reserve = 1000;
+    m_state_a.phase_info.reserve(phase_reserve);
+    m_state_a.buffer.reserve(buffer_reserve);
+
+    if (m_dynamism == RatioOftenChanging) {
+        m_state_b.phase_info.reserve(phase_reserve);
+        m_state_b.buffer.reserve(buffer_reserve);
+    }
+
+    m_s = &m_state_a;
+    m_fade = &m_state_b;
 }
 
 int
@@ -102,48 +114,51 @@ BQResampler::resample(float *const out,
     }
         
     if (!m_initialised) {
-        m_s = state_for_ratio(ratio);
+        state_for_ratio(*m_s, ratio, *m_fade);
         m_initialised = true;
-    } else if (ratio != m_s.parameters.ratio &&
-               m_ratio_change == SmoothRatioChange) {
-        if (m_debug_level > 0) {
-            cerr << "BQResampler: ratio changed, beginning fade of length "
-                 << fade_length << endl;
+    } else if (ratio != m_s->parameters.ratio) {
+        state *tmp = m_fade;
+        m_fade = m_s;
+        m_s = tmp;
+        state_for_ratio(*m_s, ratio, *m_fade);
+        if (m_ratio_change == SmoothRatioChange) {
+            if (m_debug_level > 0) {
+                cerr << "BQResampler: ratio changed, beginning fade of length "
+                     << fade_length << endl;
+            }
+            m_fade_count = fade_length;
         }
-        m_fading = m_s; //!!! todo: this but without reallocations
-        m_s = state_for_ratio(ratio);
-        m_fade_count = fade_length;
     }
 
     int i = 0, o = 0;
-    int bufsize = m_s.buffer.size();
+    int bufsize = m_s->buffer.size();
 
     while (o < outspace) {
-        while (i < incount && m_s.fill < bufsize) {
-            m_s.buffer[m_s.fill++] = in[i++];
+        while (i < incount && m_s->fill < bufsize) {
+            m_s->buffer[m_s->fill++] = in[i++];
         }
-        if (m_s.fill == bufsize) {
+        if (m_s->fill == bufsize) {
             out[o++] = reconstruct_one(m_s);
-        } else if (final && m_s.fill > m_s.centre) {
+        } else if (final && m_s->fill > m_s->centre) {
             out[o++] = reconstruct_one(m_s);
-        } else if (final && m_s.fill == m_s.centre &&
-                   m_s.current_phase != m_s.initial_phase) {
+        } else if (final && m_s->fill == m_s->centre &&
+                   m_s->current_phase != m_s->initial_phase) {
             out[o++] = reconstruct_one(m_s);
         } else {
             break;
         }
     }
 
-    int fbufsize = m_fading.buffer.size();
+    int fbufsize = m_fade->buffer.size();
     int fi = 0, fo = 0;
     while (fo < o && m_fade_count > 0) {
-        while (fi < incount && m_fading.fill < fbufsize) {
-            m_fading.buffer[m_fading.fill++] = in[fi++];
+        while (fi < incount && m_fade->fill < fbufsize) {
+            m_fade->buffer[m_fade->fill++] = in[fi++];
         }
-        if (m_fading.fill == bufsize) {
-            double r = reconstruct_one(m_fading);
+        if (m_fade->fill == bufsize) {
+            double r = reconstruct_one(m_fade);
             double fadeWith = out[fo];
-            double extent = double(m_fade_count-1) / double(fade_length);
+            double extent = double(m_fade_count - 1) / double(fade_length);
             double mixture = 0.5 * (1.0 - cos(M_PI * extent));
             double mixed = r * mixture + fadeWith * (1.0 - mixture);
             out[fo] = mixed;
@@ -320,16 +335,17 @@ BQResampler::pick_params(double ratio) const
     }
 }
 
-vector<BQResampler::phase_rec>
-BQResampler::phase_data_for(int filter_length,
-                            const vector<double> &filter,
-                            floatbuf &phase_sorted_filter,
+void
+BQResampler::phase_data_for(vector<BQResampler::phase_rec> &target_phase_data,
+                            floatbuf &target_phase_sorted_filter,
+                            int filter_length,
+                            const vector<double> *filter,
                             int initial_phase,
                             int input_spacing,
                             int output_spacing) const
 {
-    vector<phase_rec> phases;
-    phases.reserve(input_spacing);
+    target_phase_data.clear();
+    target_phase_data.reserve(input_spacing);
         
     for (int p = 0; p < input_spacing; ++p) {
         int next_phase = p - output_spacing;
@@ -342,19 +358,20 @@ BQResampler::phase_data_for(int filter_length,
         phase.next_phase = next_phase;
         phase.drop = drop;
         phase.length = zip_length;
-        phase.start_index = 0; // we fill this in below
-        phases.push_back(phase);
+        phase.start_index = 0; // we fill this in below if needed
+        target_phase_data.push_back(phase);
     }
 
     if (m_dynamism == RatioMostlyFixed) {
-        phase_sorted_filter.clear();
-        phase_sorted_filter.reserve(filter_length);
+        if (!filter) throw std::logic_error("filter required at phase_data_for in RatioMostlyFixed mode");
+        target_phase_sorted_filter.clear();
+        target_phase_sorted_filter.reserve(filter_length);
         for (int p = initial_phase; ; ) {
-            phase_rec &phase = phases[p];
-            phase.start_index = phase_sorted_filter.size();
+            phase_rec &phase = target_phase_data[p];
+            phase.start_index = target_phase_sorted_filter.size();
             for (int i = 0; i < phase.length; ++i) {
-                phase_sorted_filter.push_back
-                    (filter[i * input_spacing + p]);
+                target_phase_sorted_filter.push_back
+                    ((*filter)[i * input_spacing + p]);
             }
             p = phase.next_phase;
             if (p == initial_phase) {
@@ -362,8 +379,6 @@ BQResampler::phase_data_for(int filter_length,
             }
         }
     }
-        
-    return phases;
 }
 
 vector<double>
@@ -392,47 +407,64 @@ BQResampler::make_filter(int filter_length, double peak_to_zero) const
     sinc_multiply(peak_to_zero, filter);
     return filter;
 }
-    
-BQResampler::state
-BQResampler::state_for_ratio(double ratio) const
+
+void
+BQResampler::state_for_ratio(BQResampler::state &target_state,
+                             double ratio,
+                             const BQResampler::state &BQ_R__ prev_state) const
 {
     params parameters = pick_params(ratio);
+    target_state.parameters = parameters;
 
-    state s;
-    s.parameters = parameters;
-    s.filter_length = int(parameters.peak_to_zero * m_p_multiple + 1);
-    if (s.filter_length % 2 == 0) ++s.filter_length;
-
-    vector<double> filter;
-        
-    if (m_dynamism == RatioMostlyFixed) {
-        if (m_debug_level > 0) {
-            cerr << "BQResampler: creating filter of length " << s.filter_length
-                 << endl;
-        }
-        filter = make_filter(s.filter_length, parameters.peak_to_zero);
+    target_state.filter_length =
+        int(parameters.peak_to_zero * m_p_multiple + 1);
+    if (target_state.filter_length % 2 == 0) {
+        ++target_state.filter_length;
     }
 
-    int half_length = s.filter_length / 2; // nb length is actually odd
+    int half_length = target_state.filter_length / 2; // nb length is odd
     int input_spacing = parameters.numerator;
     int initial_phase = half_length % input_spacing;
+
+    target_state.initial_phase = initial_phase;
+    target_state.current_phase = initial_phase;
+
+    if (m_dynamism == RatioMostlyFixed) {
+        
+        if (m_debug_level > 0) {
+            cerr << "BQResampler: creating filter of length "
+                 << target_state.filter_length << endl;
+        }
+
+        vector<double> filter =
+            make_filter(target_state.filter_length, parameters.peak_to_zero);
+
+        phase_data_for(target_state.phase_info,
+                       target_state.phase_sorted_filter,
+                       target_state.filter_length, &filter,
+                       target_state.initial_phase,
+                       input_spacing,
+                       parameters.denominator);
+    } else {
+        phase_data_for(target_state.phase_info,
+                       target_state.phase_sorted_filter,
+                       target_state.filter_length, 0,
+                       target_state.initial_phase,
+                       input_spacing,
+                       parameters.denominator);
+    }
+
     int buffer_left = half_length / input_spacing;
     int buffer_right = buffer_left + 1;
 
     int buffer_length = buffer_left + buffer_right;
-    buffer_length = max(buffer_length, int(m_s.buffer.size()));
+    buffer_length = max(buffer_length, int(prev_state.buffer.size()));
+    
+    target_state.centre = buffer_length / 2;
+    target_state.left = target_state.centre - buffer_left;
+    target_state.fill = target_state.centre;
 
-    s.initial_phase = initial_phase;
-    s.current_phase = initial_phase;
-    s.phase_info = phase_data_for
-        (s.filter_length, filter, s.phase_sorted_filter,
-         initial_phase, input_spacing, parameters.denominator);
-    s.buffer = floatbuf(buffer_length, 0.0);
-    s.centre = buffer_length / 2;
-    s.left = s.centre - buffer_left;
-    s.fill = s.centre;
-
-    int n_phases = int(s.phase_info.size());
+    int n_phases = int(target_state.phase_info.size());
 
     if (m_debug_level > 0) {
         cerr << "BQResampler: buffer left " << buffer_left
@@ -444,46 +476,54 @@ BQResampler::state_for_ratio(double ratio) const
              << ", initial phase " << initial_phase
              << " of " << n_phases << endl;
     }
-        
-    if (m_s.buffer.size() > 0) {
-        int phases_then = int(m_s.phase_info.size());
-        double distance_through =
-            double(m_s.current_phase) / double(phases_then);
-        s.current_phase = round(n_phases * distance_through);
-        if (s.current_phase >= n_phases) {
-            s.current_phase = n_phases - 1;
-        }
-        for (int i = 0; i < m_s.fill; ++i) {
-            int offset = i - m_s.centre;
-            int new_ix = offset + s.centre;
-            if (new_ix >= 0 && new_ix < int(s.buffer.size())) {
-                s.buffer[new_ix] = m_s.buffer[i];
-                s.fill = new_ix + 1;
+
+    if (prev_state.buffer.size() > 0) {
+        if (int(prev_state.buffer.size()) == buffer_length) {
+            v_copy(target_state.buffer.data(), prev_state.buffer.data(),
+                   buffer_length);
+            target_state.fill = prev_state.fill;
+        } else {
+            target_state.buffer = floatbuf(buffer_length, 0.0);
+            for (int i = 0; i < prev_state.fill; ++i) {
+                int offset = i - prev_state.centre;
+                int new_ix = offset + target_state.centre;
+                if (new_ix >= 0 && new_ix < buffer_length) {
+                    target_state.buffer[new_ix] = prev_state.buffer[i];
+                    target_state.fill = new_ix + 1;
+                }
             }
         }
+
+        int phases_then = int(prev_state.phase_info.size());
+        double distance_through =
+            double(prev_state.current_phase) / double(phases_then);
+        target_state.current_phase = round(n_phases * distance_through);
+        if (target_state.current_phase >= n_phases) {
+            target_state.current_phase = n_phases - 1;
+        }
+    } else {
+        target_state.buffer = floatbuf(buffer_length, 0.0);
     }
-        
-    return s;
 }
 
 double
-BQResampler::reconstruct_one(state &s) const
+BQResampler::reconstruct_one(state *s) const
 {
-    const phase_rec &pr = s.phase_info[s.current_phase];
+    const phase_rec &pr = s->phase_info[s->current_phase];
     int phase_length = pr.length;
     double result = 0.0;
 
     if (m_dynamism == RatioMostlyFixed) {
         int phase_start = pr.start_index;
         result = v_multiply_and_sum
-            (s.phase_sorted_filter.data() + phase_start,
-             s.buffer.data() + s.left,
+            (s->phase_sorted_filter.data() + phase_start,
+             s->buffer.data() + s->left,
              phase_length);
     } else {
-        double m = double(m_proto_length - 1) / double(s.filter_length - 1);
+        double m = double(m_proto_length - 1) / double(s->filter_length - 1);
         for (int i = 0; i < phase_length; ++i) {
-            double sample = s.buffer[s.left + i];
-            int filter_index = i * s.parameters.numerator + s.current_phase;
+            double sample = s->buffer[s->left + i];
+            int filter_index = i * s->parameters.numerator + s->current_phase;
             double proto_index = m * filter_index;
             int iix = floor(proto_index);
             double remainder = proto_index - iix;
@@ -494,16 +534,16 @@ BQResampler::reconstruct_one(state &s) const
     }
 
     if (pr.drop > 0) {
-        v_move(s.buffer.data(), s.buffer.data() + pr.drop,
-               int(s.buffer.size()) - pr.drop);
+        v_move(s->buffer.data(), s->buffer.data() + pr.drop,
+               int(s->buffer.size()) - pr.drop);
         for (int i = 0; i < pr.drop; ++i) {
-            s.buffer[s.buffer.size() - pr.drop + i] = 0.0;
+            s->buffer[s->buffer.size() - pr.drop + i] = 0.0;
         }
-        s.fill -= pr.drop;
+        s->fill -= pr.drop;
     }
 
-    s.current_phase = pr.next_phase;
-    return result * s.parameters.scale;
+    s->current_phase = pr.next_phase;
+    return result * s->parameters.scale;
 }
 
 }
