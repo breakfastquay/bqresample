@@ -453,23 +453,10 @@ BQResampler::state_for_ratio(BQResampler::state &target_state,
 {
     params parameters = pick_params(ratio);
     target_state.parameters = parameters;
-
-    double beta;
-    int window_length;
-    kaiser_params(m_qparams.k_snr, m_qparams.k_transition, beta, window_length);
     
     target_state.filter_length =
         int(parameters.peak_to_zero * m_qparams.p_multiple + 1);
 
-    if (m_debug_level > 0) {
-        cerr << "BQResampler: theoretical window length " << window_length
-             << ", default filter length " << target_state.filter_length
-             << endl;
-    }
-    
-    if (target_state.filter_length < window_length) {
-        target_state.filter_length = window_length;
-    }
     if (target_state.filter_length % 2 == 0) {
         ++target_state.filter_length;
     }
