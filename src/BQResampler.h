@@ -138,6 +138,8 @@ private:
     int gcd(int a, int b) const;
     double bessel0(double x) const;
     std::vector<double> kaiser(double beta, int len) const;
+    void kaiser_params(double attenuation, double transition,
+                       double &beta, int &len) const;
     std::vector<double> kaiser_for(double attenuation, double transition,
                                    int minlen, int maxlen) const;
     void sinc_multiply(double peak_to_zero, std::vector<double> &buf) const;

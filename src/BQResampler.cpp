@@ -100,23 +100,23 @@ BQResampler::QualityParams::QualityParams(Quality q)
     case Fastest:
         p_multiple = 12;
         proto_p = 160;
-        k_snr = 90.0;
-        k_transition = 0.01;
-        cut = 0.8;
+        k_snr = 70.0;
+        k_transition = 0.2;
+        cut = 0.9;
         break;
     case FastestTolerable:
         p_multiple = 62;
         proto_p = 160;
-        k_snr = 110.0;
-        k_transition = 0.005;
-        cut = 0.93;
+        k_snr = 90.0;
+        k_transition = 0.05;
+        cut = 0.975;
         break;
     case Best:
         p_multiple = 122;
         proto_p = 800;
-        k_snr = 130.0;
-        k_transition = 0.005;
-        cut = 0.96;
+        k_snr = 100.0;
+        k_transition = 0.01;
+        cut = 0.995;
         break;
     }
 }
@@ -242,18 +242,35 @@ BQResampler::kaiser(double beta, int len) const
     return v;
 }
 
+void
+BQResampler::kaiser_params(double attenuation,
+                           double transition,
+                           double &beta,
+                           int &len) const
+{
+    if (attenuation > 21.0) {
+        len = 1 + ceil((attenuation - 7.95) / (2.285 * transition));
+    } else {
+        len = 1 + ceil(5.79 / transition);
+    }
+    beta = 0.0;
+    if (attenuation > 50.0) {
+        beta = 0.1102 * (attenuation - 8.7);
+    } else if (attenuation > 21.0) {
+        beta = 0.5842 * (pow (attenuation - 21.0, 0.4)) +
+            0.07886 * (attenuation - 21.0);
+    }
+}
+
 vector<double>
 BQResampler::kaiser_for(double attenuation,
                         double transition,
                         int minlen,
                         int maxlen) const
 {
+    double beta;
     int m;
-    if (attenuation > 21.0) {
-        m = 1 + ceil((attenuation - 7.95) / (2.285 * transition));
-    } else {
-        m = 1 + ceil(5.79 / transition);
-    }
+    kaiser_params(attenuation, transition, beta, m);
     int mb = m;
     if (maxlen > 0 && mb > maxlen - 1) {
         mb = maxlen - 1;
@@ -261,13 +278,6 @@ BQResampler::kaiser_for(double attenuation,
         mb = minlen;
     }
     if (mb % 2 == 0) ++mb;
-    double beta = 0.0;
-    if (attenuation > 50.0) {
-        beta = 0.1102 * (attenuation - 8.7);
-    } else if (attenuation > 21.0) {
-        beta = 0.5842 * (pow (attenuation - 21.0, 0.4)) +
-            0.07886 * (attenuation - 21.0);
-    }
     if (m_debug_level > 0) {
         cerr << "BQResampler: window attenuation " << attenuation
              << ", transition " << transition
@@ -415,21 +425,25 @@ BQResampler::make_filter(int filter_length, double peak_to_zero) const
     vector<double> kaiser = kaiser_for(m_qparams.k_snr, m_qparams.k_transition,
                                        1, filter_length);
     int k_length = kaiser.size();
-    kaiser.push_back(0.0);
-    
-    double m = double(k_length - 1) / double(filter_length - 1);
-    for (int i = 0; i < filter_length; ++i) {
-        double ix = i * m;
-        int iix = floor(ix);
-        double remainder = ix - iix;
-        double value = 0.0;
-        value += kaiser[iix] * (1.0 - remainder);
-        value += kaiser[iix+1] * remainder;
-        filter.push_back(value);
+
+    if (k_length == filter_length) {
+        sinc_multiply(peak_to_zero, kaiser);
+        return kaiser;
+    } else {
+        kaiser.push_back(0.0);
+        double m = double(k_length - 1) / double(filter_length - 1);
+        for (int i = 0; i < filter_length; ++i) {
+            double ix = i * m;
+            int iix = floor(ix);
+            double remainder = ix - iix;
+            double value = 0.0;
+            value += kaiser[iix] * (1.0 - remainder);
+            value += kaiser[iix+1] * remainder;
+            filter.push_back(value);
+        }
+        sinc_multiply(peak_to_zero, filter);
+        return filter;
     }
-    
-    sinc_multiply(peak_to_zero, filter);
-    return filter;
 }
 
 void
@@ -440,8 +454,22 @@ BQResampler::state_for_ratio(BQResampler::state &target_state,
     params parameters = pick_params(ratio);
     target_state.parameters = parameters;
 
+    double beta;
+    int window_length;
+    kaiser_params(m_qparams.k_snr, m_qparams.k_transition, beta, window_length);
+    
     target_state.filter_length =
         int(parameters.peak_to_zero * m_qparams.p_multiple + 1);
+
+    if (m_debug_level > 0) {
+        cerr << "BQResampler: theoretical window length " << window_length
+             << ", default filter length " << target_state.filter_length
+             << endl;
+    }
+    
+    if (target_state.filter_length < window_length) {
+        target_state.filter_length = window_length;
+    }
     if (target_state.filter_length % 2 == 0) {
         ++target_state.filter_length;
     }
