@@ -598,12 +598,13 @@ BQResampler::reconstruct_one(state *s) const
     if (s->current_channel == 0) {
 
         if (pr.drop > 0) {
-            v_move(s->buffer.data(), s->buffer.data() + pr.drop,
-                   int(s->buffer.size()) - pr.drop);
-            for (int i = 0; i < pr.drop; ++i) {
-                s->buffer[s->buffer.size() - pr.drop + i] = 0.0;
+            int drop = pr.drop * m_channels;
+            v_move(s->buffer.data(), s->buffer.data() + drop,
+                   int(s->buffer.size()) - drop);
+            for (int i = 1; i <= drop; ++i) {
+                s->buffer[s->buffer.size() - i] = 0.0;
             }
-            s->fill -= pr.drop;
+            s->fill -= drop;
         }
 
         s->current_phase = pr.next_phase;
