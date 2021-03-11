@@ -38,22 +38,18 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (info_in.channels > 1) { //!!! todo
-        cerr << "mono required" << endl;
-        return 2;
-    }
-
     int output_rate = round(target);
+    int channels = info_in.channels;
     
     cerr << "input rate = " << info_in.samplerate << endl;
     cerr << "output rate = " << output_rate << endl;
 
     double ratio = target / info_in.samplerate;
     cerr << "ratio = " << ratio << endl;
-        
+
     SF_INFO info_out;
     memset(&info_out, 0, sizeof(SF_INFO));
-    info_out.channels = 1;
+    info_out.channels = channels;
     info_out.format = info_in.format;
     info_out.samplerate = output_rate;
     SNDFILE *file_out = sf_open(outfilename.c_str(), SFM_WRITE, &info_out);
@@ -64,15 +60,15 @@ int main(int argc, char **argv)
 
     int ibs = 1024;
     int obs = ceil(ibs * ratio * 10.0);
-    float *ibuf = new float[ibs];
-    float *obuf = new float[obs];
+    float *ibuf = new float[ibs * channels];
+    float *obuf = new float[obs * channels];
 
     breakfastquay::Resampler::Parameters parameters;
     parameters.quality = breakfastquay::Resampler::Best;
-    parameters.dynamism = breakfastquay::Resampler::RatioMostlyFixed;
+    parameters.dynamism = breakfastquay::Resampler::RatioOftenChanging;
     parameters.initialSampleRate = info_in.samplerate;
     parameters.debugLevel = 1;
-    breakfastquay::Resampler resampler(parameters, 1);
+    breakfastquay::Resampler resampler(parameters, info_in.channels);
 
     int n = 0;
     while (true) {
@@ -88,7 +84,7 @@ int main(int argc, char **argv)
         if (got == 0 && final) {
             break;
         } else {
-            for (int i = 0; i < got; ++i) {
+            for (int i = 0; i < got * channels; ++i) {
                 if (obuf[i] < -1.0) obuf[i] = -1.0;
                 if (obuf[i] > 1.0) obuf[i] = 1.0;
             }

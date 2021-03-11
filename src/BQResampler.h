@@ -65,11 +65,11 @@ public:
             debugLevel(0) { }
     };
 
-    BQResampler(Parameters parameters);
+    BQResampler(Parameters parameters, int channels);
 
-    int resample(float *const out, int outspace,
-                 const float *const in, int incount,
-                 double ratio, bool final);
+    int resampleInterleaved(float *const out, int outspace,
+                            const float *const in, int incount,
+                            double ratio, bool final);
 
 private:
     struct QualityParams {
@@ -86,6 +86,7 @@ private:
     const RatioChange m_ratio_change;
     const int m_debug_level;
     const double m_initial_rate;
+    const int m_channels;
 
     struct params {
         double ratio;
@@ -112,6 +113,7 @@ private:
         params parameters;
         int initial_phase;
         int current_phase;
+        int current_channel;
         int filter_length;
         std::vector<phase_rec> phase_info;
         floatbuf phase_sorted_filter;
@@ -119,8 +121,8 @@ private:
         int left;
         int centre;
         int fill;
-        state() : initial_phase(0), current_phase(0), filter_length(0),
-                  left(0), centre(0), fill(0) { }
+        state() : initial_phase(0), current_phase(0), current_channel(0),
+                  filter_length(0), left(0), centre(0), fill(0) { }
     };
 
     state m_state_a;

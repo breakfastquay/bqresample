@@ -53,12 +53,13 @@ using std::max;
 
 namespace breakfastquay {
 
-BQResampler::BQResampler(Parameters parameters) :
+BQResampler::BQResampler(Parameters parameters, int channels) :
     m_qparams(parameters.quality),
     m_dynamism(parameters.dynamism),
     m_ratio_change(parameters.ratioChange),
     m_debug_level(parameters.debugLevel),
     m_initial_rate(parameters.referenceSampleRate),
+    m_channels(channels),
     m_fade_count(0),
     m_initialised(false)
 {
@@ -81,7 +82,7 @@ BQResampler::BQResampler(Parameters parameters) :
     }
 
     int phase_reserve = 2 * int(round(m_initial_rate));
-    int buffer_reserve = 1000;
+    int buffer_reserve = 1000 * m_channels;
     m_state_a.phase_info.reserve(phase_reserve);
     m_state_a.buffer.reserve(buffer_reserve);
 
@@ -122,12 +123,12 @@ BQResampler::QualityParams::QualityParams(Quality q)
 }
     
 int
-BQResampler::resample(float *const out,
-                      int outspace,
-                      const float *const in,
-                      int incount,
-                      double ratio,
-                      bool final) {
+BQResampler::resampleInterleaved(float *const out,
+                                 int outspace,
+                                 const float *const in,
+                                 int incount,
+                                 double ratio,
+                                 bool final) {
 
     int fade_length = round(m_initial_rate / 1000.0);
     if (fade_length < 6) {
@@ -158,8 +159,11 @@ BQResampler::resample(float *const out,
     int i = 0, o = 0;
     int bufsize = m_s->buffer.size();
 
-    while (o < outspace) {
-        while (i < incount && m_s->fill < bufsize) {
+    int incount_samples = incount * m_channels;
+    int outspace_samples = outspace * m_channels;
+    
+    while (o < outspace_samples) {
+        while (i < incount_samples && m_s->fill < bufsize) {
             m_s->buffer[m_s->fill++] = in[i++];
         }
         if (m_s->fill == bufsize) {
@@ -177,10 +181,10 @@ BQResampler::resample(float *const out,
     int fbufsize = m_fade->buffer.size();
     int fi = 0, fo = 0;
     while (fo < o && m_fade_count > 0) {
-        while (fi < incount && m_fade->fill < fbufsize) {
+        while (fi < incount_samples && m_fade->fill < fbufsize) {
             m_fade->buffer[m_fade->fill++] = in[fi++];
         }
-        if (m_fade->fill == bufsize) {
+        if (m_fade->fill == fbufsize) {
             double r = reconstruct_one(m_fade);
             double fadeWith = out[fo];
             double extent = double(m_fade_count - 1) / double(fade_length);
@@ -188,13 +192,15 @@ BQResampler::resample(float *const out,
             double mixed = r * mixture + fadeWith * (1.0 - mixture);
             out[fo] = mixed;
             ++fo;
-            --m_fade_count;
+            if (m_fade->current_channel == 0) {
+                --m_fade_count;
+            }
         } else {
             break;
         }
     }
         
-    return o;
+    return o / m_channels;
 }
 
 int
@@ -497,16 +503,23 @@ BQResampler::state_for_ratio(BQResampler::state &target_state,
     int buffer_right = buffer_left + 1;
 
     int buffer_length = buffer_left + buffer_right;
-    buffer_length = max(buffer_length, int(prev_state.buffer.size()));
-    
+    buffer_length = max(buffer_length,
+                        int(prev_state.buffer.size() / m_channels));
+
     target_state.centre = buffer_length / 2;
     target_state.left = target_state.centre - buffer_left;
     target_state.fill = target_state.centre;
 
+    buffer_length *= m_channels;
+    target_state.centre *= m_channels;
+    target_state.left *= m_channels;
+    target_state.fill *= m_channels;
+    
     int n_phases = int(target_state.phase_info.size());
 
     if (m_debug_level > 0) {
-        cerr << "BQResampler: buffer left " << buffer_left
+        cerr << "BQResampler: " << m_channels << " channel(s) interleaved"
+             << ", buffer left " << buffer_left
              << ", right " << buffer_right
              << ", total " << buffer_length << endl;
     
@@ -553,14 +566,23 @@ BQResampler::reconstruct_one(state *s) const
 
     if (m_dynamism == RatioMostlyFixed) {
         int phase_start = pr.start_index;
-        result = v_multiply_and_sum
-            (s->phase_sorted_filter.data() + phase_start,
-             s->buffer.data() + s->left,
-             phase_length);
+        if (m_channels == 1) {
+            result = v_multiply_and_sum
+                (s->phase_sorted_filter.data() + phase_start,
+                 s->buffer.data() + s->left,
+                 phase_length);
+        } else {
+            for (int i = 0; i < phase_length; ++i) {
+                result +=
+                    s->phase_sorted_filter[phase_start + i] *
+                    s->buffer[s->left + i * m_channels + s->current_channel];
+            }
+        }
     } else {
         double m = double(m_proto_length - 1) / double(s->filter_length - 1);
         for (int i = 0; i < phase_length; ++i) {
-            double sample = s->buffer[s->left + i];
+            double sample =
+                s->buffer[s->left + i * m_channels + s->current_channel];
             int filter_index = i * s->parameters.numerator + s->current_phase;
             double proto_index = m * filter_index;
             int iix = floor(proto_index);
@@ -571,16 +593,22 @@ BQResampler::reconstruct_one(state *s) const
         }
     }
 
-    if (pr.drop > 0) {
-        v_move(s->buffer.data(), s->buffer.data() + pr.drop,
-               int(s->buffer.size()) - pr.drop);
-        for (int i = 0; i < pr.drop; ++i) {
-            s->buffer[s->buffer.size() - pr.drop + i] = 0.0;
-        }
-        s->fill -= pr.drop;
-    }
+    s->current_channel = (s->current_channel + 1) % m_channels;
+    
+    if (s->current_channel == 0) {
 
-    s->current_phase = pr.next_phase;
+        if (pr.drop > 0) {
+            v_move(s->buffer.data(), s->buffer.data() + pr.drop,
+                   int(s->buffer.size()) - pr.drop);
+            for (int i = 0; i < pr.drop; ++i) {
+                s->buffer[s->buffer.size() - pr.drop + i] = 0.0;
+            }
+            s->fill -= pr.drop;
+        }
+
+        s->current_phase = pr.next_phase;
+    }
+    
     return result * s->parameters.scale;
 }
 

@@ -985,22 +985,22 @@ public:
     void reset();
 
 protected:
-    BQResampler **m_resamplers;
-    float **m_din;
-    float **m_dout;
+    BQResampler *m_resampler;
+    float *m_iin;
+    float *m_iout;
     int m_channels;
-    int m_dinsize;
-    int m_doutsize;
+    int m_iinsize;
+    int m_ioutsize;
     int m_debugLevel;
 };
 
 D_BQResampler::D_BQResampler(Resampler::Parameters params, int channels) :
-    m_resamplers(0),
-    m_din(0),
-    m_dout(0),
+    m_resampler(0),
+    m_iin(0),
+    m_iout(0),
     m_channels(channels),
-    m_dinsize(0),
-    m_doutsize(0),
+    m_iinsize(0),
+    m_ioutsize(0),
     m_debugLevel(params.debugLevel)
 {
     if (m_debugLevel > 0) {
@@ -1037,28 +1037,22 @@ D_BQResampler::D_BQResampler(Resampler::Parameters params, int channels) :
     }
     rparams.referenceSampleRate = params.initialSampleRate;
     rparams.debugLevel = params.debugLevel;
-    
-    m_resamplers = new BQResampler *[m_channels];
-    for (int c = 0; c < m_channels; ++c) {
-        m_resamplers[c] = new BQResampler(rparams);
-    }
+
+    m_resampler = new BQResampler(rparams, m_channels);
     
     if (params.maxBufferSize > 0 && m_channels > 1) {
-        m_dinsize = params.maxBufferSize;
-        m_doutsize = params.maxBufferSize;
-        m_din = allocate_channels<float>(m_channels, m_dinsize);
-        m_dout = allocate_channels<float>(m_channels, m_doutsize);
+        m_iinsize = params.maxBufferSize * m_channels;
+        m_ioutsize = params.maxBufferSize * m_channels * 2;
+        m_iin = allocate<float>(m_iinsize);
+        m_iout = allocate<float>(m_ioutsize);
     }
 }
 
 D_BQResampler::~D_BQResampler()
 {
-    deallocate_channels(m_din, m_channels);
-    deallocate_channels(m_dout, m_channels);
-    for (int c = 0; c < m_channels; ++c) {
-        delete m_resamplers[c];
-    }
-    delete[] m_resamplers;
+    delete m_resampler;
+    deallocate(m_iin);
+    deallocate(m_iout);
 }
 
 int
@@ -1069,14 +1063,26 @@ D_BQResampler::resample(float *const BQ_R__ *const BQ_R__ out,
                         double ratio,
                         bool final)
 {
-    int rv = 0;
-    
-    for (int c = 0; c < m_channels; ++c) {
-        rv = m_resamplers[c]->resample
-            (out[c], outcount, in[c], incount, ratio, final);
+    if (m_channels == 1) {
+        return resampleInterleaved(*out, outcount, *in, incount, ratio, final);
     }
 
-    return rv;
+    if (incount * m_channels > m_iinsize) {
+        m_iin = reallocate<float>(m_iin, m_iinsize, incount * m_channels);
+        m_iinsize = incount * m_channels;
+    }
+    if (outcount * m_channels > m_ioutsize) {
+        m_iout = reallocate<float>(m_iout, m_ioutsize, outcount * m_channels);
+        m_ioutsize = outcount * m_channels;
+    }
+    
+    v_interleave(m_iin, in, m_channels, incount);
+    
+    int n = resampleInterleaved(m_iout, outcount, m_iin, incount, ratio, final);
+
+    v_deinterleave(out, m_iout, m_channels, n);
+
+    return n;
 }
 
 int
@@ -1087,35 +1093,9 @@ D_BQResampler::resampleInterleaved(float *const BQ_R__ out,
                                    double ratio,
                                    bool final)
 {
-    if (m_channels == 1) {
-        return resample(&out, outcount, &in, incount, ratio, final);
-    }
-    
-    if (incount > m_dinsize) {
-        m_din = reallocate_channels(m_din,
-                                    m_channels, m_dinsize,
-                                    m_channels, incount * 2);
-        m_dinsize = incount * 2;
-    }
-    if (outcount > m_doutsize) {
-        m_dout = reallocate_channels(m_dout,
-                                     m_channels, m_doutsize,
-                                     m_channels, outcount * 2);
-        m_doutsize = outcount * 2;
-    }
-
-    v_deinterleave(m_din, in, m_channels, incount);
-    
-    int rv = 0;
-    
-    for (int c = 0; c < m_channels; ++c) {
-        rv = m_resamplers[c]->resample
-            (m_dout[c], outcount, m_din[c], incount, ratio, final);
-    }
-
-    v_interleave(out, m_dout, m_channels, rv);
-
-    return rv;
+    return m_resampler->resampleInterleaved(out, outcount,
+                                            in, incount,
+                                            ratio, final);
 }
 
 void
