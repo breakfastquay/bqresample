@@ -13,23 +13,53 @@ using namespace std;
 
 void usage()
 {
-    cerr << "Usage: resample -to <rate> <infile> <outfile>" << endl;
+    cerr << "Usage: resample [-v] [-c <converter>] -to <rate> <infile> <outfile>" << endl;
+    cerr << "where <converter> may be 0, 1, or 2, for best, medium, or fastest respectively" << endl;
+    cerr << "supply -v for verbose output" << endl;
     exit(2);
 }
 
 int main(int argc, char **argv)
 {
-    if (argc != 5 || strcmp(argv[1], "-to")) {
+    double target = 0.0;
+    int quality = 0;
+    int arg;
+    bool verbose = false;
+
+    for (arg = 1; arg + 2 < argc; ++arg) {
+        if (!strcmp(argv[arg], "-c")) {
+            char *e = argv[arg+1];
+            quality = strtol(argv[arg+1], &e, 10);
+            if (*e || (quality < 0) || (quality > 2)) {
+                cerr << "error: invalid converter \""
+                     << argv[arg+1] << "\" (must be 0, 1, 2)" << endl;
+                usage();
+            }
+            ++arg;
+            continue;
+        } else if (!strcmp(argv[arg], "-to")) {
+            target = strtod(argv[arg+1], 0);
+            if (!target) {
+                cerr << "error: invalid target \"" << argv[arg+1]
+                     << "\" (must be numeric)" << endl;
+                usage();
+            }
+            ++arg;
+            continue;
+        } else if (!strcmp(argv[arg], "-v")) {
+            verbose = true;
+        } else {
+            cerr << "error: unexpected option \"" << argv[arg] << "\"" << endl;
+            usage();
+        }
+    }
+
+    if (!target || arg + 2 != argc) {
         usage();
     }
 
-    double target = strtod(argv[2], 0);
-    if (!target) {
-        usage();
-    }
-
-    string infilename = argv[3];
-    string outfilename = argv[4];
+    string infilename = argv[arg];
+    string outfilename = argv[arg+1];
     
     SF_INFO info_in;
     SNDFILE *file_in = sf_open(infilename.c_str(), SFM_READ, &info_in);
@@ -47,6 +77,22 @@ int main(int argc, char **argv)
     double ratio = target / info_in.samplerate;
     cerr << "ratio = " << ratio << endl;
 
+    breakfastquay::Resampler::Parameters parameters;
+    switch (quality)  {
+    case 0:
+        parameters.quality = breakfastquay::Resampler::Best;
+        cerr << "quality = best" << endl;
+        break;
+    case 1:
+        parameters.quality = breakfastquay::Resampler::FastestTolerable;
+        cerr << "quality = middling" << endl;
+        break;
+    case 2:
+        parameters.quality = breakfastquay::Resampler::Fastest;
+        cerr << "quality = worst" << endl;
+        break;
+    }        
+
     SF_INFO info_out;
     memset(&info_out, 0, sizeof(SF_INFO));
     info_out.channels = channels;
@@ -63,17 +109,18 @@ int main(int argc, char **argv)
     float *ibuf = new float[ibs * channels];
     float *obuf = new float[obs * channels];
 
-    breakfastquay::Resampler::Parameters parameters;
-    parameters.quality = breakfastquay::Resampler::Best;
     parameters.dynamism = breakfastquay::Resampler::RatioMostlyFixed;
+    parameters.ratioChange = breakfastquay::Resampler::SuddenRatioChange;
     parameters.initialSampleRate = info_in.samplerate;
-    parameters.debugLevel = 1;
+    parameters.debugLevel = (verbose ? 1 : 0);
     breakfastquay::Resampler resampler(parameters, info_in.channels);
 
     int n = 0;
     while (true) {
         int count = sf_readf_float(file_in, ibuf, ibs);
-        cerr << ".";
+        if (verbose) {
+            cerr << ".";
+        }
         if (count < 0) {
             cerr << "error: count = " << count << endl;
             break;
@@ -93,7 +140,9 @@ int main(int argc, char **argv)
         ++n;
     }
 
-    cerr << endl;
+    if (verbose) {
+        cerr << endl;
+    }
     
     sf_close(file_in);
     sf_close(file_out);
