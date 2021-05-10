@@ -72,6 +72,8 @@ public:
                             const float *const in, int incount,
                             double ratio, bool final);
 
+    void reset();
+
 private:
     struct QualityParams {
         int p_multiple;

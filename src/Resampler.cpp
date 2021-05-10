@@ -1101,7 +1101,7 @@ D_BQResampler::resampleInterleaved(float *const BQ_R__ out,
 void
 D_BQResampler::reset()
 {
-    //!!! Not yet implemented in BQResampler
+    m_resampler->reset();
 }
 
 #endif /* USE_BQRESAMPLER */

@@ -115,6 +115,13 @@ BQResampler::BQResampler(const BQResampler &other) :
     }
 }
 
+void
+BQResampler::reset()
+{
+    m_initialised = false;
+    m_fade_count = 0;
+}
+
 BQResampler::QualityParams::QualityParams(Quality q)
 {
     switch (q) {
