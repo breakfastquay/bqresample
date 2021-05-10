@@ -27,8 +27,12 @@ LIBRARY	:= libbqresample.a
 
 all:	$(LIBRARY)
 
-test:	$(LIBRARY) test-resampler
+test:	$(LIBRARY) test-resampler test/e2e/halve test/e2e/random test/e2e/undulating
 	./test-resampler
+	mkdir -p ./test/e2e/out
+	./test/e2e/halve ./test/e2e/sweep-log.wav ./test/e2e/out/halve.wav
+	./test/e2e/random ./test/e2e/sweep-log.wav ./test/e2e/out/random.wav
+	./test/e2e/undulating ./test/e2e/sweep-log.wav ./test/e2e/out/undulating.wav
 
 example:	$(LIBRARY) example/resample
 
@@ -44,11 +48,14 @@ test-resampler:	test/TestResampler.o $(LIBRARY)
 example/resample: example/resample.o $(LIBRARY)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lsndfile -L../bqvec -lbqvec $(THIRD_PARTY_LIBS)
 
+test/e2e/%: test/e2e/%.o $(LIBRARY)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBRARY) -lsndfile -L../bqvec -lbqvec $(THIRD_PARTY_LIBS)
+
 clean:		
 	rm -f $(OBJECTS) $(TEST_OBJECTS) $(EXAMPLE_OBJECTS)
 
 distclean:	clean
-	rm -f $(LIBRARY) test-resampler
+	rm -f $(LIBRARY) test-resampler test/e2e/halve test/e2e/random test/e2e/undulating
 
 depend:
 	makedepend $(RESAMPLE_DEFINES) -Y -fbuild/Makefile.inc $(SOURCES) $(HEADERS) $(TEST_SOURCES) $(EXAMPLE_SOURCES)

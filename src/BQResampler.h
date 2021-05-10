@@ -66,6 +66,7 @@ public:
     };
 
     BQResampler(Parameters parameters, int channels);
+    BQResampler(const BQResampler &);
 
     int resampleInterleaved(float *const out, int outspace,
                             const float *const in, int incount,
@@ -165,6 +166,8 @@ private:
                          const state &BQ_R__ prev_state) const;
     
     double reconstruct_one(state *s) const;
+
+    BQResampler &operator=(const BQResampler &); // not provided
 };
 
 }

@@ -15,6 +15,7 @@
 # are supplied, the code will refuse to compile.
 
 RESAMPLE_DEFINES	:= -DUSE_BQRESAMPLER
+#RESAMPLE_DEFINES	:= -DHAVE_LIBSAMPLERATE
 
 
 # Add to VECTOR_DEFINES and ALLOCATOR_DEFINES any options desired for
@@ -25,10 +26,11 @@ VECTOR_DEFINES 		:=
 ALLOCATOR_DEFINES 	:= 
 
 
-# Add any related includes and libraries here
+# Add any related includes and libraries here (e.g. -lsamplerate in
+# THIRD_PARTY_LIBS if using libsamplerate)
 #
 THIRD_PARTY_INCLUDES	:=
-THIRD_PARTY_LIBS	:= 
+THIRD_PARTY_LIBS	:= -lsamplerate
 
 
 # If you are including a set of bq libraries into a project, you can

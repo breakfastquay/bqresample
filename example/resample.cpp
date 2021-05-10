@@ -105,7 +105,7 @@ int main(int argc, char **argv)
     }
 
     int ibs = 1024;
-    int obs = ceil(ibs * ratio * 10.0);
+    int obs = ceil(ibs * ratio);
     float *ibuf = new float[ibs * channels];
     float *obuf = new float[obs * channels];
 
@@ -146,4 +146,7 @@ int main(int argc, char **argv)
     
     sf_close(file_in);
     sf_close(file_out);
+    
+    delete[] ibuf;
+    delete[] obuf;
 }

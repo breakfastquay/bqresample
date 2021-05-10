@@ -42,9 +42,6 @@
 #include <bqvec/Allocators.h>
 #include <bqvec/VectorOps.h>
 
-//!!! copy/assign etc
-//!!! channels
-
 using std::vector;
 using std::cerr;
 using std::endl;
@@ -93,6 +90,29 @@ BQResampler::BQResampler(Parameters parameters, int channels) :
 
     m_s = &m_state_a;
     m_fade = &m_state_b;
+}
+
+BQResampler::BQResampler(const BQResampler &other) :
+    m_qparams(other.m_qparams),
+    m_dynamism(other.m_dynamism),
+    m_ratio_change(other.m_ratio_change),
+    m_debug_level(other.m_debug_level),
+    m_initial_rate(other.m_initial_rate),
+    m_channels(other.m_channels),
+    m_state_a(other.m_state_a),
+    m_state_b(other.m_state_b),
+    m_fade_count(other.m_fade_count),
+    m_prototype(other.m_prototype),
+    m_proto_length(other.m_proto_length),
+    m_initialised(other.m_initialised)
+{
+    if (other.m_s == &(other.m_state_a)) {
+        m_s = &m_state_a;
+        m_fade = &m_state_b;
+    } else {
+        m_s = &m_state_b;
+        m_fade = &m_state_a;
+    }
 }
 
 BQResampler::QualityParams::QualityParams(Quality q)
