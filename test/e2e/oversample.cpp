@@ -9,13 +9,13 @@
 
 using namespace std;
 
-static const string programName = "random";
-static const double initialRatio = 0.5;
-static double nextRatio(double) {
-    return drand48() * 2.5 + 0.1;
+static const string programName = "oversample";
+static const double initialRatio = 16.0;
+static double nextRatio(double ratio) {
+    return ratio;
 }
 static bool isRatioChanging() {
-    return true;
+    return false;
 }
 
 #include "e2e.cpp"

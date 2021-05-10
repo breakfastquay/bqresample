@@ -9,91 +9,13 @@
 
 using namespace std;
 
-void usage()
-{
-    cerr << "This is a test program for bqresample. Please do not try to use it in earnest." << endl;
-    cerr << "Usage: halve <infile> <outfile>" << endl;
-    exit(2);
+static const string programName = "halve";
+static const double initialRatio = 0.5;
+static double nextRatio(double ratio) {
+    return ratio;
+}
+static bool isRatioChanging() {
+    return false;
 }
 
-int main(int argc, char **argv)
-{
-    if (argc != 3) {
-        usage();
-    }
-
-    string infilename = argv[1];
-    string outfilename = argv[2];
-    
-    SF_INFO info_in;
-    SNDFILE *file_in = sf_open(infilename.c_str(), SFM_READ, &info_in);
-    if (!file_in) {
-        cerr << "failed to open " << infilename << endl;
-        return 1;
-    }
-
-    int output_rate = info_in.samplerate / 2;
-    int channels = info_in.channels;
-    double ratio = double(output_rate) / info_in.samplerate;
-    
-//    cerr << "input rate = " << info_in.samplerate << endl;
-//    cerr << "output rate = " << output_rate << endl;
-//    cerr << "ratio = " << ratio << endl;
-
-    SF_INFO info_out;
-    memset(&info_out, 0, sizeof(SF_INFO));
-    info_out.channels = channels;
-    info_out.format = info_in.format;
-    info_out.samplerate = output_rate;
-    SNDFILE *file_out = sf_open(outfilename.c_str(), SFM_WRITE, &info_out);
-    if (!file_out) {
-        cerr << "failed to open " << outfilename << endl;
-        return 1;
-    }
-
-    int ibs = 1024;
-    int obs = ceil(ibs * ratio);
-    float *ibuf = new float[ibs * channels];
-    float *obuf = new float[obs * channels];
-
-    breakfastquay::Resampler::Parameters parameters;
-    parameters.quality = breakfastquay::Resampler::Best;
-    parameters.dynamism = breakfastquay::Resampler::RatioMostlyFixed;
-    parameters.ratioChange = breakfastquay::Resampler::SuddenRatioChange;
-    parameters.initialSampleRate = info_in.samplerate;
-//    parameters.debugLevel = 1;
-    breakfastquay::Resampler resampler(parameters, channels);
-
-    int n = 0; 
-    while (true) {
-        int count = sf_readf_float(file_in, ibuf, ibs);
-        cerr << ".";
-        if (count < 0) {
-            cerr << "error: count = " << count << endl;
-            break;
-        }
-
-        bool final = (count < ibs);
-        int got = resampler.resampleInterleaved
-            (obuf, obs, ibuf, count, ratio, final);
-        
-        if (got == 0 && final) {
-            break;
-        } else {
-            for (int i = 0; i < got; ++i) {
-                if (obuf[i] < -1.0) obuf[i] = -1.0;
-                if (obuf[i] > 1.0) obuf[i] = 1.0;
-            }
-            sf_writef_float(file_out, obuf, got);
-        }
-        ++n;
-    }
-
-    cerr << endl;
-    
-    sf_close(file_in);
-    sf_close(file_out);
-
-    delete[] ibuf;
-    delete[] obuf;
-}
+#include "e2e.cpp"

@@ -11,7 +11,7 @@ HEADERS	:= $(wildcard $(HEADER_DIR)/*.h) $(wildcard $(SRC_DIR)/*.h)
 OBJECTS	:= $(SOURCES:.cpp=.o)
 OBJECTS	:= $(OBJECTS:.c=.o)
 
-TEST_SOURCES	:= $(wildcard $(TEST_DIR)/*.cpp)
+TEST_SOURCES	:= $(wildcard $(TEST_DIR)/*.cpp) $(wildcard $(TEST_DIR)/e2e/*.cpp)
 TEST_OBJECTS	:= $(TEST_SOURCES:.cpp=.o)
 
 EXAMPLE_SOURCES	:= $(wildcard $(EXAMPLE_DIR)/*.cpp)
@@ -27,10 +27,11 @@ LIBRARY	:= libbqresample.a
 
 all:	$(LIBRARY)
 
-test:	$(LIBRARY) test-resampler test/e2e/halve test/e2e/random test/e2e/undulating
+test:	$(LIBRARY) test-resampler test/e2e/halve test/e2e/oversample test/e2e/random test/e2e/undulating
 	./test-resampler
 	mkdir -p ./test/e2e/out
 	./test/e2e/halve ./test/e2e/sweep-log.wav ./test/e2e/out/halve.wav
+	./test/e2e/oversample ./test/e2e/sweep-log.wav ./test/e2e/out/oversample.wav
 	./test/e2e/random ./test/e2e/sweep-log.wav ./test/e2e/out/random.wav
 	./test/e2e/undulating ./test/e2e/sweep-log.wav ./test/e2e/out/undulating.wav
 
@@ -55,15 +56,19 @@ clean:
 	rm -f $(OBJECTS) $(TEST_OBJECTS) $(EXAMPLE_OBJECTS)
 
 distclean:	clean
-	rm -f $(LIBRARY) test-resampler test/e2e/halve test/e2e/random test/e2e/undulating
+	rm -f $(LIBRARY) test-resampler test/e2e/halve test/e2e/oversample test/e2e/oversample test/e2e/random test/e2e/undulating
 
 depend:
 	makedepend $(RESAMPLE_DEFINES) -Y -fbuild/Makefile.inc $(SOURCES) $(HEADERS) $(TEST_SOURCES) $(EXAMPLE_SOURCES)
 
 
 # DO NOT DELETE
- 
+
 src/BQResampler.o: src/BQResampler.h
 src/Resampler.o: bqresample/Resampler.h src/BQResampler.h
 test/TestResampler.o: bqresample/Resampler.h
+test/e2e/halve.o: bqresample/Resampler.h test/e2e/e2e.cpp
+test/e2e/oversample.o: bqresample/Resampler.h test/e2e/e2e.cpp
+test/e2e/random.o: bqresample/Resampler.h test/e2e/e2e.cpp
+test/e2e/undulating.o: bqresample/Resampler.h test/e2e/e2e.cpp
 example/resample.o: bqresample/Resampler.h

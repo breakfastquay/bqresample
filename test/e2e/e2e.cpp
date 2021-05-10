@@ -1,19 +1,10 @@
 
-#include "bqresample/Resampler.h"
-
-#include <sndfile.h>
-
-#include <iostream>
-
-#include <cstring>
-#include <cstdlib>
-#include <cmath>
-
-using namespace std;
+// Not a standalone source file
 
 void usage()
 {
-    cerr << "Usage: resample [-v] [-c <converter>] -to <rate> <infile> <outfile>" << endl;
+    cerr << "This is a test program for bqresample. Please do not try to use it in earnest." << endl;
+    cerr << "Usage: " << programName << " [-v] [-c <converter>] <infile> <outfile>" << endl;
     cerr << "where <converter> may be 0, 1, or 2, for best, medium, or fastest respectively." << endl;
     cerr << "The default converter is 0, best." << endl;
     cerr << "Supply -v for verbose output." << endl;
@@ -22,7 +13,6 @@ void usage()
 
 int main(int argc, char **argv)
 {
-    double target = 0.0;
     int quality = 0;
     int arg;
     bool verbose = false;
@@ -38,15 +28,6 @@ int main(int argc, char **argv)
             }
             ++arg;
             continue;
-        } else if (!strcmp(argv[arg], "-to")) {
-            target = strtod(argv[arg+1], 0);
-            if (!target) {
-                cerr << "error: invalid target \"" << argv[arg+1]
-                     << "\" (must be numeric)" << endl;
-                usage();
-            }
-            ++arg;
-            continue;
         } else if (!strcmp(argv[arg], "-v")) {
             verbose = true;
         } else {
@@ -55,7 +36,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!target || arg + 2 != argc) {
+    if (arg + 2 != argc) {
         usage();
     }
 
@@ -69,18 +50,29 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int output_rate = round(target);
     int channels = info_in.channels;
-    
+
     if (verbose) {
         cerr << "input rate = " << info_in.samplerate << endl;
-        cerr << "output rate = " << output_rate << endl;
     }
 
-    double ratio = target / info_in.samplerate;
-    if (verbose) {
-        cerr << "ratio = " << ratio << endl;
+    double ratio = initialRatio;
+        
+    SF_INFO info_out;
+    memset(&info_out, 0, sizeof(SF_INFO));
+    info_out.channels = channels;
+    info_out.format = info_in.format;
+    info_out.samplerate = info_in.samplerate;
+    SNDFILE *file_out = sf_open(outfilename.c_str(), SFM_WRITE, &info_out);
+    if (!file_out) {
+        cerr << "failed to open " << outfilename << endl;
+        return 1;
     }
+
+    int ibs = 1024;
+    int obs = ceil(ibs * ratio * 10);
+    float *ibuf = new float[ibs * channels];
+    float *obuf = new float[obs * channels];
 
     breakfastquay::Resampler::Parameters parameters;
     switch (quality)  {
@@ -104,27 +96,17 @@ int main(int argc, char **argv)
         break;
     }        
 
-    SF_INFO info_out;
-    memset(&info_out, 0, sizeof(SF_INFO));
-    info_out.channels = channels;
-    info_out.format = info_in.format;
-    info_out.samplerate = output_rate;
-    SNDFILE *file_out = sf_open(outfilename.c_str(), SFM_WRITE, &info_out);
-    if (!file_out) {
-        cerr << "failed to open " << outfilename << endl;
-        return 1;
+    if (isRatioChanging()) {
+        parameters.dynamism = breakfastquay::Resampler::RatioOftenChanging;
+        parameters.ratioChange = breakfastquay::Resampler::SmoothRatioChange;
+    } else {
+        parameters.dynamism = breakfastquay::Resampler::RatioMostlyFixed;
+        parameters.ratioChange = breakfastquay::Resampler::SuddenRatioChange;
     }
-
-    int ibs = 1024;
-    int obs = ceil(ibs * ratio);
-    float *ibuf = new float[ibs * channels];
-    float *obuf = new float[obs * channels];
-
-    parameters.dynamism = breakfastquay::Resampler::RatioMostlyFixed;
-    parameters.ratioChange = breakfastquay::Resampler::SuddenRatioChange;
+    
     parameters.initialSampleRate = info_in.samplerate;
     parameters.debugLevel = (verbose ? 1 : 0);
-    breakfastquay::Resampler resampler(parameters, info_in.channels);
+    breakfastquay::Resampler resampler(parameters, channels);
 
     int n = 0;
     while (true) {
@@ -136,18 +118,22 @@ int main(int argc, char **argv)
             cerr << "error: count = " << count << endl;
             break;
         }
+        
         bool final = (count < ibs);
         int got = resampler.resampleInterleaved
             (obuf, obs, ibuf, count, ratio, final);
+        
         if (got == 0 && final) {
             break;
         } else {
-            for (int i = 0; i < got * channels; ++i) {
+            for (int i = 0; i < got; ++i) {
                 if (obuf[i] < -1.0) obuf[i] = -1.0;
                 if (obuf[i] > 1.0) obuf[i] = 1.0;
             }
             sf_writef_float(file_out, obuf, got);
         }
+        
+        ratio = nextRatio(ratio);
         ++n;
     }
 
