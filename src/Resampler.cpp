@@ -175,7 +175,7 @@ D_IPP::D_IPP(Resampler::Quality /* quality */,
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        cerr << "Resampler::Resampler: using IPP implementation" << endl;
+        cerr << "Resampler::Resampler: using implementation: IPP" << endl;
     }
 
     m_window = 32;
@@ -601,7 +601,7 @@ D_SRC::D_SRC(Resampler::Quality quality, Resampler::RatioChange ratioChange,
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        cerr << "Resampler::Resampler: using libsamplerate implementation"
+        cerr << "Resampler::Resampler: using implementation: libsamplerate"
              << endl;
     }
 
@@ -820,7 +820,7 @@ D_Resample::D_Resample(Resampler::Quality quality,
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        cerr << "Resampler::Resampler: using libresample implementation"
+        cerr << "Resampler::Resampler: using implementation: libresample"
                   << endl;
     }
 
@@ -1004,7 +1004,7 @@ D_BQResampler::D_BQResampler(Resampler::Parameters params, int channels) :
     m_debugLevel(params.debugLevel)
 {
     if (m_debugLevel > 0) {
-        cerr << "Resampler::Resampler: using BQResampler implementation" << endl;
+        cerr << "Resampler::Resampler: using implementation: BQResampler" << endl;
     }
 
     BQResampler::Parameters rparams;
@@ -1170,7 +1170,7 @@ D_Speex::D_Speex(Resampler::Quality quality, Resampler::RatioChange,
              quality == Resampler::Fastest ? 0 : 4);
 
     if (m_debugLevel > 0) {
-        cerr << "Resampler::Resampler: using Speex implementation with q = "
+        cerr << "Resampler::Resampler: using implementation: Speex with q = "
              << q << endl;
     }
 

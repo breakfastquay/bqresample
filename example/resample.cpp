@@ -14,8 +14,8 @@ using namespace std;
 void usage()
 {
     cerr << "Usage: resample [-v] [-c <converter>] -to <rate> <infile> <outfile>" << endl;
-    cerr << "where <converter> may be 0, 1, or 2, for best, medium, or fastest respectively" << endl;
-    cerr << "supply -v for verbose output" << endl;
+    cerr << "where <converter> may be 0, 1, or 2, for best, medium, or fastest respectively." << endl;
+    cerr << "Supply -v for verbose output." << endl;
     exit(2);
 }
 
