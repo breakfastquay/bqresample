@@ -72,6 +72,8 @@ public:
                             const float *const in, int incount,
                             double ratio, bool final);
 
+    double getEffectiveRatio(double ratio) const;
+    
     void reset();
 
 private:
