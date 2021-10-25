@@ -15,7 +15,7 @@
 # better to stick with a single known library. If no flags are
 # supplied, the code will refuse to compile.
 #
-RESAMPLE_DEFINES	:= -DHAVE_LIBSAMPLERATE
+RESAMPLE_DEFINES	:= -DUSE_BQRESAMPLER
 
 
 # Add to VECTOR_DEFINES and ALLOCATOR_DEFINES any options desired for
@@ -30,7 +30,7 @@ ALLOCATOR_DEFINES 	:=
 # THIRD_PARTY_LIBS if using libsamplerate)
 #
 THIRD_PARTY_INCLUDES	:=
-THIRD_PARTY_LIBS	:= -lsamplerate
+THIRD_PARTY_LIBS	:=
 
 
 # If you are including a set of bq libraries into a project, you can

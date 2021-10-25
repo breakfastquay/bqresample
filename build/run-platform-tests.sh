@@ -50,7 +50,7 @@ run() {
     fi
 }
 
-for mf in Makefile build/Makefile.$platformtag build/Makefile.$platformtag.* ; do
+for mf in build/Makefile.$platformtag build/Makefile.$platformtag.* Makefile ; do
 
     case "$mf" in
 	*~) continue;;

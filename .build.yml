@@ -3,6 +3,7 @@ packages:
   - libboost-test-dev
   - valgrind
   - libsamplerate0-dev
+  - libsndfile-dev
   - curl
 sources:
   - hg+https://hg.sr.ht/~breakfastquay/bqresample
