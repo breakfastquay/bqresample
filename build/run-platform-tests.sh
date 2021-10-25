@@ -74,6 +74,11 @@ for mf in build/Makefile.$platformtag build/Makefile.$platformtag.* Makefile ; d
 	( cd ../bqvec ; run "" make -f "$mf" clean && run "" make -f "$mf" )
 	echo "Build in bqvec done"
 	echo
+    else
+	echo "No similar Makefile exists in bqvec dir, building there using default Makefile first..."
+	( cd ../bqvec ; run "" make clean && run "" make )
+	echo "Build in bqvec done"
+	echo
     fi
     
     run "" make -f "$mf" clean
