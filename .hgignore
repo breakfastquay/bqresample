@@ -3,3 +3,9 @@ syntax: glob
 *.o
 *.a
 test-*
+example/resample
+test/e2e/halve
+test/e2e/random
+test/e2e/undulating
+test/e2e/oversample
+test/e2e/out

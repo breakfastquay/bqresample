@@ -1,19 +1,20 @@
 
 # Add to RESAMPLE_DEFINES the relevant options for your desired
-# third-party library support.
+# implementation and/or third-party library support.
 #
-# Available options are
+# Available library options are
 #
 #  -DHAVE_LIBSAMPLERATE  The libsamplerate library is available (recommended)
 #  -DHAVE_IPP            Intel's Integrated Performance Primitives are available
 #  -DHAVE_LIBRESAMPLE    The libresample library is available
+#  -DUSE_BQRESAMPLER     Compile the built-in BQ resampler (pretty good)
 #  -DUSE_SPEEX           Compile the built-in Speex-derived resampler
 #
-# You may define more than one of these. If you define USE_SPEEX, the
-# code will be compiled in and will be used when it is judged to be
-# the best available option for a given quality setting. If no flags
-# are supplied, the code will refuse to compile.
-
+# You may define more than one of these, and the implementation used
+# will depend on the quality setting you request - but it is usually
+# better to stick with a single known library. If no flags are
+# supplied, the code will refuse to compile.
+#
 RESAMPLE_DEFINES	:= -DHAVE_LIBSAMPLERATE
 
 
@@ -25,7 +26,8 @@ VECTOR_DEFINES 		:=
 ALLOCATOR_DEFINES 	:= 
 
 
-# Add any related includes and libraries here
+# Add any related includes and libraries here (e.g. -lsamplerate in
+# THIRD_PARTY_LIBS if using libsamplerate)
 #
 THIRD_PARTY_INCLUDES	:=
 THIRD_PARTY_LIBS	:= -lsamplerate

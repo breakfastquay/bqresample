@@ -44,6 +44,9 @@ class Resampler
 {
 public:
     enum Quality { Best, FastestTolerable, Fastest };
+    enum Dynamism { RatioOftenChanging, RatioMostlyFixed };
+    enum RatioChange { SmoothRatioChange, SuddenRatioChange };
+    
     enum Exception { ImplementationError };
 
     struct Parameters {
@@ -53,6 +56,22 @@ public:
          */
         Quality quality;
 
+        /**
+         * Performance hint indicating whether the ratio is expected
+         * to change regularly or not. If not, more work may happen on
+         * ratio changes to reduce work when ratio is unchanged.
+         */
+        Dynamism dynamism; 
+
+        /**
+         * Hint indicating whether to smooth transitions, via filter
+         * interpolation or some such method, at ratio change
+         * boundaries, or whether to make a precise switch to the new
+         * ratio without regard to audible artifacts. The actual
+         * effect of this depends on the implementation in use.
+         */
+        RatioChange ratioChange;
+        
         /** 
          * Rate of expected input prior to resampling: may be used to
          * determine the filter bandwidth for the quality setting. If
@@ -79,6 +98,8 @@ public:
 
         Parameters() :
             quality(FastestTolerable),
+            dynamism(RatioMostlyFixed),
+            ratioChange(SmoothRatioChange),
             initialSampleRate(44100),
             maxBufferSize(0),
             debugLevel(0) { }
@@ -137,8 +158,25 @@ public:
                             double ratio,
                             bool final = false);
 
+    /**
+     * Return the channel count provided on construction.
+     */
     int getChannelCount() const;
 
+    /**
+     * Return the ratio that will be actually used when the given
+     * ratio is requested. For example, if the resampler internally
+     * uses a rational approximation of the given ratio, this will
+     * return the closest double to that approximation. Not all
+     * implementations support this; an implementation that does not
+     * will just return the given ratio.
+     */
+    double getEffectiveRatio(double ratio) const;
+    
+    /**
+     * Reset the internal processing state so that the next call
+     * behaves as if the resampler had just been constructed.
+     */
     void reset();
 
     class Impl;
