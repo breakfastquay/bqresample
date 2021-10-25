@@ -3,13 +3,9 @@ bqresample
 ==========
 
 A small C++ library wrapping various audio sample rate conversion
-libraries.
-
-Covers libsamplerate, Intel IPP, libresample, and Speex resampler
-implementations. Note however that libsamplerate is now the
-recommended option on every platform, so for new applications there is
-probably no good reason not to use it directly. Suitable for Windows,
-Mac, and Linux.
+libraries. Contains a built-in implementation and wrappers for
+libsamplerate, Intel IPP, and Speex resampler
+implementations. Suitable for Windows, Mac, and Linux.
 
 Requires the bqvec library.
 
@@ -18,7 +14,7 @@ same authors (see https://hg.sr.ht/~breakfastquay/rubberband/).
 It has been pulled out into a separate library and relicensed under a
 more permissive licence.
 
-C++ standard required: C++98 (does not use C++11 or newer features)
+C++ standard required: C++11
 
  * To compile: read and follow the notes in Makefile, edit the Makefile,
    then make test. Or else use one of the pre-edited Makefiles in the
