@@ -75,7 +75,7 @@ for mf in build/Makefile.$platformtag build/Makefile.$platformtag.* Makefile ; d
 	echo "Build in bqvec done"
 	echo
     else
-	echo "No similar Makefile exists in bqvec dir, building there using default Makefile first..."
+	echo "No such Makefile exists in bqvec dir, building there using default Makefile..."
 	( cd ../bqvec ; run "" make clean && run "" make )
 	echo "Build in bqvec done"
 	echo
