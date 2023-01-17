@@ -6,7 +6,6 @@
 #
 #  -DHAVE_LIBSAMPLERATE  The libsamplerate library is available (recommended)
 #  -DHAVE_IPP            Intel's Integrated Performance Primitives are available
-#  -DHAVE_LIBRESAMPLE    The libresample library is available
 #  -DUSE_BQRESAMPLER     Compile the built-in BQ resampler (pretty good)
 #  -DUSE_SPEEX           Compile the built-in Speex-derived resampler
 #

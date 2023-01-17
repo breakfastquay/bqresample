@@ -26,6 +26,6 @@ C++ standard required: C++11
 
 [![Build status](https://builds.sr.ht/~breakfastquay/bqresample.svg)](https://builds.sr.ht/~breakfastquay/bqresample?)
 
-Copyright 2007-2021 Particular Programs Ltd.
-Uses Speex code, see speex/COPYING for copyright and licence information.
+Copyright 2007-2023 Particular Programs Ltd.
+May use Speex code, see speex/COPYING for copyright and licence information.
 
