@@ -34,6 +34,7 @@
 */
 
 #include "BQResampler.h"
+#include "common.h"
 
 #include <cmath>
 

@@ -34,6 +34,7 @@
 */
 
 #include "bqresample/Resampler.h"
+#include "common.h"
 
 #include <cstdlib>
 #include <cmath>
@@ -62,7 +63,11 @@
 #endif
 
 #ifdef USE_SPEEX
-#include "../speex/speex_resampler.h"
+#include "../ext/speex/speex_resampler.h"
+#else
+#ifdef HAVE_LIBSPEEXDSP
+#include <speex/speex_resampler.h>
+#endif
 #endif
 
 #ifdef USE_BQRESAMPLER
@@ -71,9 +76,11 @@
 
 #ifndef HAVE_IPP
 #ifndef HAVE_LIBSAMPLERATE
+#ifndef HAVE_LIBSPEEXDSP
 #ifndef USE_SPEEX
 #ifndef USE_BQRESAMPLER
 #error No resampler implementation selected!
+#endif
 #endif
 #endif
 #endif
@@ -921,7 +928,7 @@ D_BQResampler::reset()
 
 #endif /* USE_BQRESAMPLER */
 
-#ifdef USE_SPEEX
+#if defined(USE_SPEEX) || defined(HAVE_LIBSPEEXDSP)
     
 class D_Speex : public Resampler::Impl
 {
@@ -1029,18 +1036,22 @@ D_Speex::setRatio(double ratio)
     // Speex wants a ratio of two unsigned integers, not a single
     // float.  Let's do that.
 
-    unsigned int big = 272408136U; 
-    unsigned int denom = 1, num = 1;
-
-    if (ratio < 1.f) {
-        denom = big;
-        double dnum = double(big) * double(ratio);
-        num = (unsigned int)dnum;
-    } else if (ratio > 1.f) {
-        num = big;
-        double ddenom = double(big) / double(ratio);
-        denom = (unsigned int)ddenom;
+    int max_denom = 48000;
+    if (ratio > 1.0) {
+        max_denom = int(ceil(48000 / ratio));
     }
+
+    int inum, idenom;
+    pickNearestRational(ratio, max_denom, inum, idenom);
+
+    if (inum < 0 || idenom < 0) {
+        cerr << "Resampler::setRatio: Internal error: "
+             << "numerator or denominator < 0 ("
+             << inum << "/" << idenom << ")" << endl;
+        return;
+    }
+    
+    unsigned int num = inum, denom = idenom;
     
     if (m_debugLevel > 1) {
         cerr << "D_Speex: Desired ratio " << ratio << ", requesting ratio "
@@ -1055,8 +1066,12 @@ D_Speex::setRatio(double ratio)
         (m_resampler, denom, num, fromRate, toRate);
 
     if (err) {
-        cerr << "Resampler::Resampler: failed to set rate on Speex resampler" 
-             << endl;
+        cerr << "Resampler::Resampler: failed to set rate on Speex resampler"
+             << " (with ratio = " << ratio << " [ratio-1 = " << ratio - 1.0
+             << "], denom = " << denom
+             << ", num = " << num << ", fromRate = " << fromRate
+             << ", toRate = " << toRate << ", err = " << err
+             << ")" << endl;
 #ifndef NO_EXCEPTIONS
         throw Resampler::ImplementationError;
 #endif
@@ -1219,8 +1234,11 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
 #ifdef USE_SPEEX
         m_method = 2;
 #endif
+#ifdef HAVE_LIBSPEEXDSP
+        m_method = 2;
+#endif
 #ifdef USE_BQRESAMPLER
-        m_method = 4;
+        m_method = 3;
 #endif
 #ifdef HAVE_LIBSAMPLERATE
         m_method = 1;
@@ -1235,10 +1253,13 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
         m_method = 2;
 #endif
 #ifdef USE_BQRESAMPLER
-        m_method = 4;
+        m_method = 3;
 #endif
 #ifdef HAVE_LIBSAMPLERATE
         m_method = 1;
+#endif
+#ifdef HAVE_LIBSPEEXDSP
+        m_method = 2;
 #endif
         break;
 
@@ -1250,10 +1271,13 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
         m_method = 2;
 #endif
 #ifdef USE_BQRESAMPLER
-        m_method = 4;
+        m_method = 3;
 #endif
 #ifdef HAVE_LIBSAMPLERATE
         m_method = 1;
+#endif
+#ifdef HAVE_LIBSPEEXDSP
+        m_method = 2;
 #endif
         break;
     }
@@ -1289,7 +1313,7 @@ Resampler::Resampler(Resampler::Parameters params, int channels)
         break;
 
     case 2:
-#ifdef USE_SPEEX
+#if defined(USE_SPEEX) || defined(HAVE_LIBSPEEXDSP)
         d = new Resamplers::D_Speex
             (params.quality, params.ratioChange,
              channels,
