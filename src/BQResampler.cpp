@@ -39,6 +39,7 @@
 #include <cmath>
 
 #include <iostream>
+#include <algorithm>
 
 #include <bqvec/Allocators.h>
 #include <bqvec/VectorOps.h>
@@ -132,6 +133,7 @@ BQResampler::QualityParams::QualityParams(Quality q)
         k_snr = 70.0;
         k_transition = 0.2;
         cut = 0.9;
+        rational_max = 48000;
         break;
     case FastestTolerable:
         p_multiple = 62;
@@ -139,6 +141,7 @@ BQResampler::QualityParams::QualityParams(Quality q)
         k_snr = 90.0;
         k_transition = 0.05;
         cut = 0.975;
+        rational_max = 96000;
         break;
     case Best:
         p_multiple = 122;
@@ -146,6 +149,7 @@ BQResampler::QualityParams::QualityParams(Quality q)
         k_snr = 100.0;
         k_transition = 0.01;
         cut = 0.995;
+        rational_max = 192000;
         break;
     }
 }
@@ -156,9 +160,9 @@ BQResampler::resampleInterleaved(float *const out,
                                  const float *const in,
                                  int incount,
                                  double ratio,
-                                 bool final) {
-
-    int fade_length = round(m_initial_rate / 1000.0);
+                                 bool final)
+{
+    int fade_length = int(round(m_initial_rate / 1000.0));
     if (fade_length < 6) {
         fade_length = 6;
     }
@@ -292,9 +296,9 @@ BQResampler::kaiser_params(double attenuation,
                            int &len) const
 {
     if (attenuation > 21.0) {
-        len = 1 + ceil((attenuation - 7.95) / (2.285 * transition));
+        len = 1 + int(ceil((attenuation - 7.95) / (2.285 * transition)));
     } else {
-        len = 1 + ceil(5.79 / transition);
+        len = 1 + int(ceil(5.79 / transition));
     }
     beta = 0.0;
     if (attenuation > 50.0) {
@@ -353,8 +357,10 @@ BQResampler::sinc_multiply(double peak_to_zero, vector<double> &buf) const
 }
 
 BQResampler::params
-BQResampler::fill_params(double ratio, int num, int denom) const
+BQResampler::fill_params(double ratio, double numd, double denomd) const
 {
+    int num = int(round(numd));
+    int denom = int(round(denomd));
     params p;
     int g = gcd (num, denom);
     p.ratio = ratio;
@@ -381,36 +387,18 @@ BQResampler::fill_params(double ratio, int num, int denom) const
 BQResampler::params
 BQResampler::pick_params(double ratio) const
 {
-    // Farey algorithm, see
-    // https://www.johndcook.com/blog/2010/10/20/best-rational-approximation/
-    int max_denom = 192000;
-    double a = 0.0, b = 1.0, c = 1.0, d = 0.0;
-    double pa = a, pb = b, pc = c, pd = d;
-    double eps = 1e-9;
-    while (b <= max_denom && d <= max_denom) {
-        double mediant = (a + c) / (b + d);
-        if (fabs(ratio - mediant) < eps) {
-            if (b + d <= max_denom) {
-                return fill_params(ratio, a + c, b + d);
-            } else if (d > b) {
-                return fill_params(ratio, c, d);
-            } else {
-                return fill_params(ratio, a, b);
-            }
-        }
-        if (ratio > mediant) {
-            pa = a; pb = b;
-            a += c; b += d;
-        } else {
-            pc = c; pd = d;
-            c += a; d += b;
-        }
-    }
-    if (fabs(ratio - (pc / pd)) < fabs(ratio - (pa / pb))) {
-        return fill_params(ratio, pc, pd);
+    int max_denom;
+    if (m_dynamism == RatioMostlyFixed) {
+        max_denom = 192000;
     } else {
-        return fill_params(ratio, pa, pb);
+        max_denom = m_qparams.rational_max;
+        if (ratio > 1.0) {
+            max_denom = int(ceil(max_denom / ratio));
+        }
     }
+    int num, denom;
+    pickNearestRational(ratio, max_denom, num, denom);
+    return fill_params(ratio, num, denom);
 }
 
 void
@@ -430,8 +418,8 @@ BQResampler::phase_data_for(vector<BQResampler::phase_rec> &target_phase_data,
         while (next_phase < 0) next_phase += input_spacing;
         next_phase %= input_spacing;
         double dspace = double(input_spacing);
-        int zip_length = ceil(double(filter_length - p) / dspace);
-        int drop = ceil(double(max(0, output_spacing - p)) / dspace);
+        int zip_length = int(ceil(double(filter_length - p) / dspace));
+        int drop = int(ceil(double(max(0, output_spacing - p)) / dspace));
         phase_rec phase;
         phase.next_phase = next_phase;
         phase.drop = drop;
@@ -441,7 +429,13 @@ BQResampler::phase_data_for(vector<BQResampler::phase_rec> &target_phase_data,
     }
 
     if (m_dynamism == RatioMostlyFixed) {
-        if (!filter) throw std::logic_error("filter required at phase_data_for in RatioMostlyFixed mode");
+        if (!filter) {
+#ifndef NO_EXCEPTIONS
+            throw std::logic_error("filter required at phase_data_for in RatioMostlyFixed mode");
+#else        
+            abort();
+#endif
+        }
         target_phase_sorted_filter.clear();
         target_phase_sorted_filter.reserve(filter_length);
         for (int p = initial_phase; ; ) {
@@ -477,7 +471,7 @@ BQResampler::make_filter(int filter_length, double peak_to_zero) const
         double m = double(k_length - 1) / double(filter_length - 1);
         for (int i = 0; i < filter_length; ++i) {
             double ix = i * m;
-            int iix = floor(ix);
+            int iix = int(floor(ix));
             double remainder = ix - iix;
             double value = 0.0;
             value += kaiser[iix] * (1.0 - remainder);
@@ -585,7 +579,7 @@ BQResampler::state_for_ratio(BQResampler::state &target_state,
         int phases_then = int(prev_state.phase_info.size());
         double distance_through =
             double(prev_state.current_phase) / double(phases_then);
-        target_state.current_phase = round(n_phases * distance_through);
+        target_state.current_phase = int(round(n_phases * distance_through));
         if (target_state.current_phase >= n_phases) {
             target_state.current_phase = n_phases - 1;
         }
@@ -626,7 +620,7 @@ BQResampler::reconstruct_one(state *s) const
                 s->buffer[s->left + i * m_channels + s->current_channel];
             int filter_index = i * s->parameters.numerator + s->current_phase;
             double proto_index = m * filter_index;
-            int iix = floor(proto_index);
+            int iix = int(floor(proto_index));
             double remainder = proto_index - iix;
             double filter_value = m_prototype[iix] * (1.0 - remainder);
             filter_value += m_prototype[iix+1] * remainder;

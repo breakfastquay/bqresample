@@ -2,7 +2,7 @@
 SRC_DIR	:= src
 TEST_DIR := test
 EXAMPLE_DIR := example
-SPEEX_DIR := speex
+SPEEX_DIR := ext/speex
 HEADER_DIR := bqresample
 
 SOURCES	:= $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SPEEX_DIR)/*.c)

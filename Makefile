@@ -5,9 +5,10 @@
 # Available library options are
 #
 #  -DHAVE_LIBSAMPLERATE  The libsamplerate library is available (recommended)
+#  -DHAVE_LIBSPEEXDSP    The speexdsp library is available (recommended)
 #  -DHAVE_IPP            Intel's Integrated Performance Primitives are available
 #  -DUSE_BQRESAMPLER     Compile the built-in BQ resampler (pretty good)
-#  -DUSE_SPEEX           Compile the built-in Speex-derived resampler
+#  -DUSE_SPEEX           Compile the bundled Speex-derived resampler
 #
 # You may define more than one of these, and the implementation used
 # will depend on the quality setting you request - but it is usually
