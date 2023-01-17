@@ -4,6 +4,7 @@ packages:
   - valgrind
   - libsamplerate0-dev
   - libsndfile-dev
+  - libspeexdsp-dev
   - curl
 sources:
   - hg+https://hg.sr.ht/~breakfastquay/bqresample
