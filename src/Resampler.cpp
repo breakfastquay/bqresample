@@ -33,7 +33,7 @@
     Software without prior written authorization.
 */
 
-#include "bqresample/Resampler.h"
+#include "../bqresample/Resampler.h"
 #include "common.h"
 
 #include <cstdlib>
